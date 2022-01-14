@@ -1,3 +1,3 @@
-# template_python_package
+# wesh
 
-This is a template Python package for GitHub.
+``wesh`` is the Weaver of Echelle Spectra from Hubble (Space Telescope).

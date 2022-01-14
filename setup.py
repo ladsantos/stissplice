@@ -14,14 +14,14 @@ if sys.argv[-1] == "publish":
     sys.exit()
 
 setup(
-    name="sunburn",
+    name="wesh",
     version="0.1a",
     author="Leonardo dos Santos",
     author_email="ldsantos@stsci.edu",
-    packages=["template_python_package"],
-    url="https://github.com/ladsantos/template_python_package",
+    packages=["wesh"],
+    url="https://github.com/ladsantos/wesh",
     license="MIT",
-    description="This is a template Python package for GitHub",
+    description="Weaver of Echelle Spectra from Hubble",
     install_requires=[line.strip() for line in
                       open('requirements.txt', 'r').readlines()],
     classifiers=[

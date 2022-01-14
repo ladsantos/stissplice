@@ -1,0 +1,20 @@
+name: t_env
+
+channels:
+  - conda-forge
+  - defaults
+
+dependencies:
+  - python=>3.6
+  - numpy
+  - scipy
+  - matplotlib
+  - astropy
+  - pytest
+  - sphinx
+  - jupyter
+  - ipykernel
+  - nbsphinx
+  - numpydoc
+  - sphinx_rtd_theme
+  - setuptools

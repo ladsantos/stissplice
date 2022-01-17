@@ -25,15 +25,15 @@ def read_spectrum(filename, prefix):
 
     Parameters
     ----------
-    filename (`str`):
-        Name of the `*_x1d.fits` file containing the spectrum.
+    filename (``str``):
+        Name of the ``*_x1d.fits`` file containing the spectrum.
 
-    prefix (`str`):
-        Path to the `*_x1d.fits` file containing the spectrum.
+    prefix (``str``):
+        Path to the ``*_x1d.fits`` file containing the spectrum.
 
     Returns
     -------
-    spectrum (`list`):
+    spectrum (``list``):
         List of all the orders contained in the Echelle spectrum and their
         respective fluxes.
     """
@@ -59,14 +59,22 @@ def read_spectrum(filename, prefix):
 # Identify overlapping regions in each order
 def find_overlap(order_pair):
     """
+    Find and return the overlapping sections of the Echelle spectrum.
 
     Parameters
     ----------
-    order_pair
+    order_pair (Sequence):
+        The pair of spectral sections containing two ``dict`` objects, one for
+        each order. Can be either an array, list, or sequence.
 
     Returns
     -------
-    sections
+    sections (``list``):
+        List of sections in the following order: unique sections for the first
+        and second spectral order followed by the overlapping sections for the
+        first and second order. "First" and "second" here do not refer to the
+        actual order numbers of the spectrum, but rather in the pair of
+        neighboring orders.
     """
     order_0, order_1 = order_pair
 
@@ -106,19 +114,45 @@ def merge_overlap(overlap_0, overlap_1, inconsistency_sigma=3, outlier_sigma=5,
                   correct_inconsistent_fluxes=True, 
                   correct_outlier_fluxes=True):
     """
+    Merges overlapping spectral regions. The basic workflow of this function
+    is to interpolate the two sections into a common wavelength table and
+    calculate the mean flux for each wavelength bin. If the fluxes are
+    inconsistent between each other, the code can use the flux with higher SNR
+    instead of the mean. If there are still outlier fluxes (compared to
+    neighboring pixels), the code uses the flux from the lower SNR section
+    instead.
     
     Parameters
     ----------
-    overlap_0
-    overlap_1
-    inconsistency_sigma
-    outlier_sigma
-    correct_inconsistent_fluxes
-    correct_outlier_fluxes
+    overlap_0 (``dict``):
+        Dictionary containing the overlapping spectrum of the first order in a
+        pair of neighboring orders.
+
+    overlap_1 (``dict``):
+        Dictionary containing the overlapping spectrum of the second order in a
+        pair of neighboring orders.
+
+    inconsistency_sigma (``float`` or ``int``, optional):
+        Threshold standard deviation to determine if two fluxes in the same
+        wavelength bin are inconsistent with each other. Default is ``3``.
+
+    outlier_sigma (``float`` or ``int``, optional):
+        Threshold standard deviation to determine if the flux in a given pixel
+        is inconsistent with the average between the neighboring pixels. Default
+        is ``5``.
+
+    correct_inconsistent_fluxes (``bool``, optional):
+        Parameter that decides whether to correct or not correct inconsistent
+        fluxes. Default is ``True``.
+
+    correct_outlier_fluxes (``bool``, optional):
+        Parameter that decides whether to correct or not correct outlier fluxes.
+        Default is ``True``.
 
     Returns
     -------
-
+    overlap_merged (``dict``):
+        Dictionary containing the merged overlapping spectrum.
     """
     # First we need to determine which spectrum has a lower SNR
     avg_snr = np.array([np.mean(overlap_0['flux'] / overlap_0['uncertainty']),
@@ -197,15 +231,26 @@ def merge_overlap(overlap_0, overlap_1, inconsistency_sigma=3, outlier_sigma=5,
 # Splice the spectra
 def splice(unique_spectra_list, merged_overlap_list):
     """
+    Concatenate the unique and the (merged) overlapping spectra.
 
     Parameters
     ----------
-    unique_spectra_list
-    merged_overlap_list
+    unique_spectra_list (``list``):
+        List of unique spectra.
+
+    merged_overlap_list (``list``):
+        List of merged overlapping spectra.
 
     Returns
     -------
+    spliced_wavelength (``numpy.ndarray``):
+        Array containing the wavelengths in the entire spectrum.
 
+    spliced_flux (``numpy.ndarray``):
+        Array containing the fluxes in the entire spectrum.
+
+    spliced_uncertainty (``numpy.ndarray``):
+        Array containing the flux uncertainties in the entire spectrum.
     """
     n_overlap = len(merged_overlap_list)
     all_spectra = []
@@ -230,21 +275,51 @@ def splice_pipeline(dataset, prefix='./', update_fits=False, output_file=None,
                     correct_inconsistent_fluxes=True,
                     correct_outlier_fluxes=True):
     """
+    The main workhorse of the package. This pipeline performs all of the steps
+    necessary to merge overlapping spectral sections and splice them with the
+    unique sections.
 
     Parameters
     ----------
-    dataset
-    prefix
-    update_fits
-    output_file
-    inconsistency_sigma
-    outlier_sigma
-    correct_inconsistent_fluxes
-    correct_outlier_fluxes
+    dataset (``str``):
+        String that identifies the dataset (example: ``'oblh01040'``).
+
+    prefix (``str``):
+        Path to the ``*_x1d.fits`` file containing the spectrum.
+
+    update_fits (``bool``, optional):
+        THIS FEATURE HAS NOT BEEN TESTED YET. Use carefully, since it can modify
+        fits files permanently. Parameter that decides whether to update the
+        ``*_x1d.fits`` file with a new extension containing the spliced
+        spectrum.
+
+    output_file (``str`` or ``None``, optional):
+        String containing the location to save the output spectrum as an ascii
+        file. If ``None``, no output file is saved and the code returns an
+        Astropy Table instead. Default is ``None``.
+
+    inconsistency_sigma (``float`` or ``int``, optional):
+        Threshold standard deviation to determine if two fluxes in the same
+        wavelength bin are inconsistent with each other. Default is ``3``.
+
+    outlier_sigma (``float`` or ``int``, optional):
+        Threshold standard deviation to determine if the flux in a given pixel
+        is inconsistent with the average between the neighboring pixels. Default
+        is ``5``.
+
+    correct_inconsistent_fluxes (``bool``, optional):
+        Parameter that decides whether to correct or not correct inconsistent
+        fluxes. Default is ``True``.
+
+    correct_outlier_fluxes (``bool``, optional):
+        Parameter that decides whether to correct or not correct outlier fluxes.
+        Default is ``True``.
 
     Returns
     -------
-
+    spliced_spectrum_table (``astropy.Table`` object):
+        Astropy Table containing the spliced spectrum. Only returned if
+        ``output_file`` is ``None``.
     """
     # Read the data
     sections = read_spectrum(dataset, prefix)

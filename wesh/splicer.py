@@ -209,6 +209,7 @@ def splice(unique_spectra_list, merged_overlap_list):
     """
     n_overlap = len(merged_overlap_list)
     all_spectra = []
+
     for i in range(n_overlap):
         all_spectra.append(unique_spectra_list[i])
         all_spectra.append(merged_overlap_list[i])

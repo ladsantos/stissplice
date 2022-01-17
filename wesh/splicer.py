@@ -10,9 +10,11 @@ from __future__ import (division, print_function, absolute_import,
 import numpy as np
 from wesh import tools
 from astropy.io import fits
+from astropy.table import Table
 
 
-__all__ = ["read_spectrum", "find_overlap", "merge_overlap"]
+__all__ = ["read_spectrum", "find_overlap", "merge_overlap", "splice",
+           "splice_pipeline"]
 
 
 # Read the Echelle spectrum based on dataset name and a prefix for file location
@@ -219,3 +221,79 @@ def splice(unique_spectra_list, merged_overlap_list):
         np.concatenate([spectrum['uncertainty'] for spectrum in all_spectra])
 
     return spliced_wavelength, spliced_flux, spliced_uncertainty
+
+
+# The splice pipeline does everything
+def splice_pipeline(dataset, prefix='./', update_fits=False, output_file=None,
+                    inconsistency_sigma=3, outlier_sigma=5,
+                    correct_inconsistent_fluxes=True,
+                    correct_outlier_fluxes=True):
+    """
+
+    Parameters
+    ----------
+    dataset
+    prefix
+    update_fits
+    output_file
+    inconsistency_sigma
+    outlier_sigma
+    correct_inconsistent_fluxes
+    correct_outlier_fluxes
+
+    Returns
+    -------
+
+    """
+    # Read the data
+    sections = read_spectrum(dataset, prefix)
+    n_sections = len(sections)
+
+    # Separate spectral sections into pairs
+    pairs = [[sections[i], sections[i + 1]] for i in range(n_sections - 1)]
+    n_pairs = len(pairs)
+
+    # Identify unique and overlapping sections pair by pair
+    unique_sections = []
+    overlap_pairs = []
+    for i in range(n_pairs):
+        splices = find_overlap(pairs[i])
+        pairs[i][0] = splices[0]
+        pairs[i][1] = splices[1]
+        unique_sections.append(pairs[i][0])
+        if i == n_pairs - 1:
+            unique_sections.append(pairs[i][1])
+        else:
+            pairs[i + 1][0] = splices[1]
+        overlap_pairs.append([splices[2], splices[3]])
+
+    # Merge the overlapping spectral sections
+    merged_sections = [
+        merge_overlap(overlap_pairs[i][0], overlap_pairs[i][1],
+                      inconsistency_sigma, outlier_sigma,
+                      correct_inconsistent_fluxes, correct_outlier_fluxes)
+        for i in range(len(overlap_pairs))
+    ]
+
+    # By now we have two lists: unique_sections and merged_sections. The next
+    # step is to concatenate everything in the correct order. Since the spectra
+    # are listed in reverse order in the `x1d` file, we unreverse them here
+    unique_sections.reverse()
+    merged_sections.reverse()
+
+    # Finally splice the unique and merged sections
+    wavelength, flux, uncertainty = splice(unique_sections, merged_sections)
+    spectrum_dict = \
+        {'WAVELENGTH': wavelength, 'FLUX': flux, 'ERROR': uncertainty}
+    spliced_spectrum_table = Table(spectrum_dict)
+
+    # This feature has not been tested yet! Use carefully!
+    if update_fits is True:
+        fits.append(prefix + '%s_x1d.fits' % dataset,
+                    data=spliced_spectrum_table)
+
+    # Return or output the result
+    if output_file is None:
+        return spliced_spectrum_table
+    else:
+        spliced_spectrum_table.write(output_file, format='ascii')

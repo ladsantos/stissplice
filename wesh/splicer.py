@@ -46,13 +46,19 @@ def read_spectrum(filename, prefix):
     wavelength = data['WAVELENGTH']
     flux = data['FLUX']
     uncertainty = data['ERROR']
+    net = data['NET']
+    gross = data['GROSS']
+    data_quality = data['DQ']
     n_orders = len(wavelength)
 
     # We index the spectral regions as a `dict` in order to avoid confusion with
     # too many numerical indexes
     spectrum = [{'wavelength': wavelength[i],
                  'flux': flux[i],
-                 'uncertainty': uncertainty[i]} for i in range(n_orders)]
+                 'uncertainty': uncertainty[i],
+                 'net': net[i],
+                 'gross': gross[i],
+                 'data_quality': data_quality[i]} for i in range(n_orders)]
     return spectrum
 
 
@@ -94,16 +100,32 @@ def find_overlap(order_pair):
     # sections, and the other two are the overlapping spectral sections
     overlap_0 = {'wavelength': order_0['wavelength'][overlap_index_0],
                  'flux': order_0['flux'][overlap_index_0],
-                 'uncertainty': order_0['uncertainty'][overlap_index_0]}
+                 'uncertainty': order_0['uncertainty'][overlap_index_0],
+                 # 'net': order_0['net'][overlap_index_0],
+                 # 'gross': order_0['gross'][overlap_index_0],
+                 # 'data_quality': order_0['data_quality'][overlap_index_0]
+                 }
     overlap_1 = {'wavelength': order_1['wavelength'][overlap_index_1],
                  'flux': order_1['flux'][overlap_index_1],
-                 'uncertainty': order_1['uncertainty'][overlap_index_1]}
+                 'uncertainty': order_1['uncertainty'][overlap_index_1],
+                 # 'net': order_1['net'][overlap_index_1],
+                 # 'gross': order_1['gross'][overlap_index_1],
+                 # 'data_quality': order_1['data_quality'][overlap_index_1]
+                 }
     unique_0 = {'wavelength': order_0['wavelength'][i0:],
                 'flux': order_0['flux'][i0:],
-                'uncertainty': order_0['uncertainty'][i0:]}
+                'uncertainty': order_0['uncertainty'][i0:],
+                # 'net': order_0['net'][i0:],
+                # 'gross': order_0['gross'][i0:],
+                # 'data_quality': order_0['data_quality'][i0:]
+                }
     unique_1 = {'wavelength': order_1['wavelength'][:i1],
                 'flux': order_1['flux'][:i1],
-                'uncertainty': order_1['uncertainty'][:i1]}
+                'uncertainty': order_1['uncertainty'][:i1],
+                # 'net': order_1['net'][i1:],
+                # 'gross': order_1['gross'][i1:],
+                # 'data_quality': order_1['data_quality'][i1:]
+                }
     sections = [unique_0, unique_1, overlap_0, overlap_1]
 
     return sections
@@ -159,8 +181,8 @@ def merge_overlap(overlap_0, overlap_1, inconsistency_sigma=3, outlier_sigma=5,
                         np.mean(overlap_1['flux'] / overlap_1['uncertainty'])])
 
     # We interpolate the higher-SNR spectrum to the wavelength bins of the lower
-    # SNR spectrum. This is to avoid degrading the spectrum that is already 
-    # the worst
+    # SNR spectrum. This is to avoid degrading the spectrum that already has
+    # the worst quality
     if avg_snr[0] > avg_snr[1]:
         overlap_interp = overlap_0
         overlap_ref = overlap_1
@@ -199,7 +221,7 @@ def merge_overlap(overlap_0, overlap_1, inconsistency_sigma=3, outlier_sigma=5,
     else:
         pass
 
-    # There could still be pixels with discrepant fluxes, if the higher SNR
+    # There could still be pixels with discrepant fluxes if the higher SNR
     # one was an outlier. So we check and correct for them. The next code lines
     # are not really neat and nice to read, so bear with me for now.
     surround_mean = np.array([(f_merge[i] + f_merge[i + 2]) / 2
@@ -275,7 +297,7 @@ def splice_pipeline(dataset, prefix='./', update_fits=False, output_file=None,
                     correct_inconsistent_fluxes=True,
                     correct_outlier_fluxes=True):
     """
-    The main workhorse of the package. This pipeline performs all of the steps
+    The main workhorse of the package. This pipeline performs all the steps
     necessary to merge overlapping spectral sections and splice them with the
     unique sections.
 
@@ -353,7 +375,7 @@ def splice_pipeline(dataset, prefix='./', update_fits=False, output_file=None,
 
     # By now we have two lists: unique_sections and merged_sections. The next
     # step is to concatenate everything in the correct order. Since the spectra
-    # are listed in reverse order in the `x1d` file, we unreverse them here
+    # are listed in reverse order in the `x1d` file, we un-reverse them here
     unique_sections.reverse()
     merged_sections.reverse()
 

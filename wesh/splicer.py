@@ -101,30 +101,30 @@ def find_overlap(order_pair):
     overlap_0 = {'wavelength': order_0['wavelength'][overlap_index_0],
                  'flux': order_0['flux'][overlap_index_0],
                  'uncertainty': order_0['uncertainty'][overlap_index_0],
-                 # 'net': order_0['net'][overlap_index_0],
-                 # 'gross': order_0['gross'][overlap_index_0],
-                 # 'data_quality': order_0['data_quality'][overlap_index_0]
+                 'net': order_0['net'][overlap_index_0],
+                 'gross': order_0['gross'][overlap_index_0],
+                 'data_quality': order_0['data_quality'][overlap_index_0]
                  }
     overlap_1 = {'wavelength': order_1['wavelength'][overlap_index_1],
                  'flux': order_1['flux'][overlap_index_1],
                  'uncertainty': order_1['uncertainty'][overlap_index_1],
-                 # 'net': order_1['net'][overlap_index_1],
-                 # 'gross': order_1['gross'][overlap_index_1],
-                 # 'data_quality': order_1['data_quality'][overlap_index_1]
+                 'net': order_1['net'][overlap_index_1],
+                 'gross': order_1['gross'][overlap_index_1],
+                 'data_quality': order_1['data_quality'][overlap_index_1]
                  }
     unique_0 = {'wavelength': order_0['wavelength'][i0:],
                 'flux': order_0['flux'][i0:],
                 'uncertainty': order_0['uncertainty'][i0:],
-                # 'net': order_0['net'][i0:],
-                # 'gross': order_0['gross'][i0:],
-                # 'data_quality': order_0['data_quality'][i0:]
+                'net': order_0['net'][i0:],
+                'gross': order_0['gross'][i0:],
+                'data_quality': order_0['data_quality'][i0:]
                 }
     unique_1 = {'wavelength': order_1['wavelength'][:i1],
                 'flux': order_1['flux'][:i1],
                 'uncertainty': order_1['uncertainty'][:i1],
-                # 'net': order_1['net'][i1:],
-                # 'gross': order_1['gross'][i1:],
-                # 'data_quality': order_1['data_quality'][i1:]
+                'net': order_1['net'][:i1],
+                'gross': order_1['gross'][:i1],
+                'data_quality': order_1['data_quality'][:i1]
                 }
     sections = [unique_0, unique_1, overlap_0, overlap_1]
 
@@ -348,7 +348,7 @@ def splice_pipeline(dataset, prefix='./', update_fits=False, output_file=None,
     n_sections = len(sections)
 
     # Separate spectral sections into pairs
-    pairs = [[sections[i], sections[i + 1]] for i in range(n_sections - 1)]
+    pairs = [[sections[j], sections[j + 1]] for j in range(n_sections - 1)]
     n_pairs = len(pairs)
 
     # Identify unique and overlapping sections pair by pair
@@ -358,19 +358,19 @@ def splice_pipeline(dataset, prefix='./', update_fits=False, output_file=None,
         splices = find_overlap(pairs[i])
         pairs[i][0] = splices[0]
         pairs[i][1] = splices[1]
-        unique_sections.append(pairs[i][0])
+        unique_sections.append(splices[0])
         if i == n_pairs - 1:
-            unique_sections.append(pairs[i][1])
+            unique_sections.append(splices[1])
         else:
             pairs[i + 1][0] = splices[1]
         overlap_pairs.append([splices[2], splices[3]])
 
     # Merge the overlapping spectral sections
     merged_sections = [
-        merge_overlap(overlap_pairs[i][0], overlap_pairs[i][1],
+        merge_overlap(overlap_pairs[k][0], overlap_pairs[k][1],
                       inconsistency_sigma, outlier_sigma,
                       correct_inconsistent_fluxes, correct_outlier_fluxes)
-        for i in range(len(overlap_pairs))
+        for k in range(len(overlap_pairs))
     ]
 
     # By now we have two lists: unique_sections and merged_sections. The next

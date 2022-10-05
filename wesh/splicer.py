@@ -201,10 +201,20 @@ def merge_overlap(overlap_0, overlap_1, inconsistency_sigma=3, outlier_sigma=5,
     inconsistent = np.where(abs(delta_f) > inconsistency_sigma * err_delta)[0]
 
     # Merge the spectra, the inconsistent pixels will be corrected in the next
-    # step
+    # step. We will take the weighted averaged, with weights equal to the
+    # uncertainties squared. We multiply everything by a large number to avoid
+    # numerical issues.
+    scale = 1E10
+    weights_interp = 1 / (err_interp * scale) ** 2
+    weights_ref = 1 / (overlap_ref['uncertainty'] * scale) ** 2
+    sum_weights = weights_interp + weights_ref
+
     wl_merge = np.copy(overlap_ref['wavelength'])
-    f_merge = (f_interp + overlap_ref['flux']) / 2
-    err_merge = ((err_interp ** 2 + overlap_ref['uncertainty'] ** 2) ** 0.5) / 2
+    f_merge = (f_interp * weights_interp +
+               overlap_ref['flux'] * weights_ref) / sum_weights
+    err_merge = ((err_interp ** 2 * weights_interp ** 2 +
+                  overlap_ref['uncertainty'] ** 2 * weights_ref ** 2) ** 0.5) \
+        / sum_weights
 
     # For the pixels where we have inconsistencies, we use the ones with 
     # the highest SNR

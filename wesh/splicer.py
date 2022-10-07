@@ -46,8 +46,6 @@ def read_spectrum(filename, prefix):
     wavelength = data['WAVELENGTH']
     flux = data['FLUX']
     uncertainty = data['ERROR']
-    net = data['NET']
-    gross = data['GROSS']
     data_quality = data['DQ']
     n_orders = len(wavelength)
 
@@ -56,8 +54,6 @@ def read_spectrum(filename, prefix):
     spectrum = [{'wavelength': wavelength[i],
                  'flux': flux[i],
                  'uncertainty': uncertainty[i],
-                 'net': net[i],
-                 'gross': gross[i],
                  'data_quality': data_quality[i]} for i in range(n_orders)]
     return spectrum
 
@@ -101,29 +97,21 @@ def find_overlap(order_pair):
     overlap_0 = {'wavelength': order_0['wavelength'][overlap_index_0],
                  'flux': order_0['flux'][overlap_index_0],
                  'uncertainty': order_0['uncertainty'][overlap_index_0],
-                 'net': order_0['net'][overlap_index_0],
-                 'gross': order_0['gross'][overlap_index_0],
                  'data_quality': order_0['data_quality'][overlap_index_0]
                  }
     overlap_1 = {'wavelength': order_1['wavelength'][overlap_index_1],
                  'flux': order_1['flux'][overlap_index_1],
                  'uncertainty': order_1['uncertainty'][overlap_index_1],
-                 'net': order_1['net'][overlap_index_1],
-                 'gross': order_1['gross'][overlap_index_1],
                  'data_quality': order_1['data_quality'][overlap_index_1]
                  }
     unique_0 = {'wavelength': order_0['wavelength'][i0:],
                 'flux': order_0['flux'][i0:],
                 'uncertainty': order_0['uncertainty'][i0:],
-                'net': order_0['net'][i0:],
-                'gross': order_0['gross'][i0:],
                 'data_quality': order_0['data_quality'][i0:]
                 }
     unique_1 = {'wavelength': order_1['wavelength'][:i1],
                 'flux': order_1['flux'][:i1],
                 'uncertainty': order_1['uncertainty'][:i1],
-                'net': order_1['net'][:i1],
-                'gross': order_1['gross'][:i1],
                 'data_quality': order_1['data_quality'][:i1]
                 }
     sections = [unique_0, unique_1, overlap_0, overlap_1]
@@ -134,11 +122,12 @@ def find_overlap(order_pair):
 # Merge overlapping sections
 def merge_overlap(overlap_0, overlap_1, inconsistency_sigma=3, outlier_sigma=5,
                   correct_inconsistent_fluxes=True, 
-                  correct_outlier_fluxes=True):
+                  correct_outlier_fluxes=True,
+                  acceptable_dq_flags=(0, 64, 128, 1024, 2048)):
     """
     Merges overlapping spectral regions. The basic workflow of this function
     is to interpolate the two sections into a common wavelength table and
-    calculate the mean flux for each wavelength bin. If the fluxes are
+    calculate the weighted mean flux for each wavelength bin. If the fluxes are
     inconsistent between each other, the code can use the flux with higher SNR
     instead of the mean. If there are still outlier fluxes (compared to
     neighboring pixels), the code uses the flux from the lower SNR section
@@ -170,6 +159,13 @@ def merge_overlap(overlap_0, overlap_1, inconsistency_sigma=3, outlier_sigma=5,
     correct_outlier_fluxes (``bool``, optional):
         Parameter that decides whether to correct or not correct outlier fluxes.
         Default is ``True``.
+
+    acceptable_dq_flags (array-like, optional):
+        Data-quality flags that are acceptable when co-adding overlapping
+        spectra. The default values are (0, 64, 128, 1024, 2048), which
+        correspond to: 0 = regular pixel, 64 = vignetted pixel, 128 = pixel in
+        overscan region, 1024 = small blemish, 2048 = more than 30% of
+        background pixels rejected by sigma-clipping in the data reduction.
 
     Returns
     -------
@@ -207,8 +203,36 @@ def merge_overlap(overlap_0, overlap_1, inconsistency_sigma=3, outlier_sigma=5,
     scale = 1E10
     weights_interp = 1 / (err_interp * scale) ** 2
     weights_ref = 1 / (overlap_ref['uncertainty'] * scale) ** 2
+
+    # Here we deal with the data-quality flags. We only accept flags that are
+    # listed in `acceptable_dq_flags`. Let's initialize the dq flag arrays
+    dq_ref = overlap_ref['data_quality']
+    # The interpolated dq flag array is a bit more involved. First we
+    # interpolate the original array to the new wavelength grid, and then we
+    # round all the values to the nearest integer
+    dq_interp = np.rint(np.interp(overlap_ref['wavelength'],
+                        overlap_interp['wavelength'],
+                        overlap_interp['data_quality']))
+    # However this does not guarantee the interpolated and rounded dq values are
+    # valid dq flags. Since the interpolation occurs at very small wavelength
+    # shifts, for now we assume that all dq flags will be valid. This may be
+    # changed in the future.
+    # We start assuming that all the dq weights are one
+    dq_weights_ref = np.zeros_like(dq_ref)
+    dq_weights_interp = np.zeros_like(dq_interp)
+    # And then for each acceptable dq, if the element of the dq array is not one
+    # of the acceptable flags, we set its dq weight to zero
+    for adq in acceptable_dq_flags:
+        dq_weights_ref[np.where(dq_ref == adq)[0]] = 1
+        dq_weights_interp[np.where(dq_interp == adq)[0]] = 1
+    # And then we multiply the original weights by the dq weights
+    weights_interp *= dq_weights_interp
+    weights_ref *= dq_weights_interp
+
+    # This following array will be important later
     sum_weights = weights_interp + weights_ref
 
+    # Finally co-add the overlaps
     wl_merge = np.copy(overlap_ref['wavelength'])
     f_merge = (f_interp * weights_interp +
                overlap_ref['flux'] * weights_ref) / sum_weights
@@ -254,8 +278,12 @@ def merge_overlap(overlap_0, overlap_1, inconsistency_sigma=3, outlier_sigma=5,
     else:
         pass
 
+    # We create a new data-quality array filled with 32768, which is what we
+    # establish as the flag for co-added pixels
+    dq_merge = np.ones_like(wl_merge, dtype=int) * 32768
+
     overlap_merged = {'wavelength': wl_merge, 'flux': f_merge,
-                      'uncertainty': err_merge}
+                      'uncertainty': err_merge, 'data_quality': dq_merge}
 
     return overlap_merged
 
@@ -297,15 +325,19 @@ def splice(unique_spectra_list, merged_overlap_list):
         np.concatenate([spectrum['flux'] for spectrum in all_spectra])
     spliced_uncertainty = \
         np.concatenate([spectrum['uncertainty'] for spectrum in all_spectra])
+    spliced_data_quality = \
+        np.concatenate([spectrum['data_quality'] for spectrum in all_spectra])
 
-    return spliced_wavelength, spliced_flux, spliced_uncertainty
+    return spliced_wavelength, spliced_flux, spliced_uncertainty, \
+        spliced_data_quality
 
 
 # The splice pipeline does everything
 def splice_pipeline(dataset, prefix='./', update_fits=False, output_file=None,
                     inconsistency_sigma=3, outlier_sigma=5,
                     correct_inconsistent_fluxes=True,
-                    correct_outlier_fluxes=True):
+                    correct_outlier_fluxes=True,
+                    acceptable_dq_flags=(0, 64, 128, 1024, 2048)):
     """
     The main workhorse of the package. This pipeline performs all the steps
     necessary to merge overlapping spectral sections and splice them with the
@@ -347,6 +379,13 @@ def splice_pipeline(dataset, prefix='./', update_fits=False, output_file=None,
         Parameter that decides whether to correct or not correct outlier fluxes.
         Default is ``True``.
 
+    acceptable_dq_flags (array-like, optional):
+        Data-quality flags that are acceptable when co-adding overlapping
+        spectra. The default values are (0, 64, 128, 1024, 2048), which
+        correspond to: 0 = regular pixel, 64 = vignetted pixel, 128 = pixel in
+        overscan region, 1024 = small blemish, 2048 = more than 30% of
+        background pixels rejected by sigma-clipping in the data reduction.
+
     Returns
     -------
     spliced_spectrum_table (``astropy.Table`` object):
@@ -379,7 +418,8 @@ def splice_pipeline(dataset, prefix='./', update_fits=False, output_file=None,
     merged_sections = [
         merge_overlap(overlap_pairs[k][0], overlap_pairs[k][1],
                       inconsistency_sigma, outlier_sigma,
-                      correct_inconsistent_fluxes, correct_outlier_fluxes)
+                      correct_inconsistent_fluxes, correct_outlier_fluxes,
+                      acceptable_dq_flags)
         for k in range(len(overlap_pairs))
     ]
 
@@ -390,9 +430,9 @@ def splice_pipeline(dataset, prefix='./', update_fits=False, output_file=None,
     merged_sections.reverse()
 
     # Finally splice the unique and merged sections
-    wavelength, flux, uncertainty = splice(unique_sections, merged_sections)
+    wavelength, flux, uncertainty, dq = splice(unique_sections, merged_sections)
     spectrum_dict = \
-        {'WAVELENGTH': wavelength, 'FLUX': flux, 'ERROR': uncertainty}
+        {'WAVELENGTH': wavelength, 'FLUX': flux, 'ERROR': uncertainty, 'DQ': dq}
     spliced_spectrum_table = Table(spectrum_dict)
 
     # This feature has not been tested yet! Use carefully!

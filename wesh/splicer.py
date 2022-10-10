@@ -131,7 +131,10 @@ def merge_overlap(overlap_0, overlap_1, inconsistency_sigma=3, outlier_sigma=5,
     inconsistent between each other, the code can use the flux with higher SNR
     instead of the mean. If there are still outlier fluxes (compared to
     neighboring pixels), the code uses the flux from the lower SNR section
-    instead.
+    instead. Co-added (merged) pixels will have their DQ flag set to `32768` if
+    they are the result of combining good pixels (according to the list of
+    acceptable flags). Their DQ flag will be set to `65536` if the combined
+    pixels do not have acceptable DQ flag.
     
     Parameters
     ----------
@@ -204,6 +207,10 @@ def merge_overlap(overlap_0, overlap_1, inconsistency_sigma=3, outlier_sigma=5,
     weights_interp = 1 / (err_interp * scale) ** 2
     weights_ref = 1 / (overlap_ref['uncertainty'] * scale) ** 2
 
+    # We create a new data-quality array filled with 32768, which is what we
+    # establish as the flag for co-added pixels
+    dq_merge = np.ones_like(f_interp, dtype=int) * 32768
+
     # Here we deal with the data-quality flags. We only accept flags that are
     # listed in `acceptable_dq_flags`. Let's initialize the dq flag arrays
     dq_ref = overlap_ref['data_quality']
@@ -217,17 +224,26 @@ def merge_overlap(overlap_0, overlap_1, inconsistency_sigma=3, outlier_sigma=5,
     # valid dq flags. Since the interpolation occurs at very small wavelength
     # shifts, for now we assume that all dq flags will be valid. This may be
     # changed in the future.
-    # We start assuming that all the dq weights are one
+    # We start assuming that all the dq weights are zero
     dq_weights_ref = np.zeros_like(dq_ref)
     dq_weights_interp = np.zeros_like(dq_interp)
-    # And then for each acceptable dq, if the element of the dq array is not one
-    # of the acceptable flags, we set its dq weight to zero
+    # And then for each acceptable dq, if the element of the dq array is one
+    # of the acceptable flags, we set its dq weight to one
     for adq in acceptable_dq_flags:
         dq_weights_ref[np.where(dq_ref == adq)[0]] = 1
         dq_weights_interp[np.where(dq_interp == adq)[0]] = 1
+
+    # Now we need to verify if we are setting the dq weighting to zero in both
+    # the reference and the interpolated dqs. If this is the case, we will
+    # set their weights to one and then flag these pixels
+    sum_dq_weights = np.copy(dq_weights_ref + dq_weights_interp)
+    dq_weights_ref[sum_dq_weights < 1] = 1
+    dq_weights_interp[sum_dq_weights < 1] = 1
+    dq_merge[sum_dq_weights < 1] = 65536
+
     # And then we multiply the original weights by the dq weights
     weights_interp *= dq_weights_interp
-    weights_ref *= dq_weights_interp
+    weights_ref *= dq_weights_ref
 
     # This following array will be important later
     sum_weights = weights_interp + weights_ref
@@ -277,10 +293,6 @@ def merge_overlap(overlap_0, overlap_1, inconsistency_sigma=3, outlier_sigma=5,
                 err_merge[i] = err_interp[i]
     else:
         pass
-
-    # We create a new data-quality array filled with 32768, which is what we
-    # establish as the flag for co-added pixels
-    dq_merge = np.ones_like(wl_merge, dtype=int) * 32768
 
     overlap_merged = {'wavelength': wl_merge, 'flux': f_merge,
                       'uncertainty': err_merge, 'data_quality': dq_merge}

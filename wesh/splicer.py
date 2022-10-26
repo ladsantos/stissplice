@@ -13,8 +13,8 @@ from astropy.io import fits
 from astropy.table import Table
 
 
-__all__ = ["read_spectrum", "find_overlap", "merge_overlap", "splice",
-           "splice_pipeline"]
+__all__ = ["read_spectrum", "find_overlap", "find_overlap_trio",
+           "merge_overlap", "splice", "splice_pipeline"]
 
 
 # Read the Echelle spectrum based on dataset name and a prefix for file location
@@ -115,6 +115,68 @@ def find_overlap(order_pair):
                 'data_quality': order_1['data_quality'][:i1]
                 }
     sections = [unique_0, unique_1, overlap_0, overlap_1]
+
+    return sections
+
+
+# Find overlap between three sections
+def find_overlap_trio(order_trio):
+    order_0, order_1, order_2 = order_trio
+
+    # Identify the wavelength values in the borders of each order
+    borders_0 = \
+        np.array([min(order_0['wavelength']), max(order_0['wavelength'])])
+    borders_2 = \
+        np.array([min(order_2['wavelength']), max(order_2['wavelength'])])
+
+    # # Identify the indexes where the orders overlap
+    i0 = tools.nearest_index(order_0['wavelength'], borders_2[1])
+    i1 = tools.nearest_index(order_1['wavelength'], borders_0[0])
+    i2 = tools.nearest_index(order_1['wavelength'], borders_2[1])
+    i3 = tools.nearest_index(order_2['wavelength'], borders_0[0])
+    overlap_index_0 = np.arange(0, i0, 1)
+    overlap_index_1 = np.arange(i1, i2, 1)
+    overlap_index_2 = np.arange(i3, 1024, 1)
+
+    # Break down the order trio into seven sections: four are unique spectral
+    # sections, and the other three are the overlapping spectral sections
+    overlap_0 = {'wavelength': order_0['wavelength'][overlap_index_0],
+                 'flux': order_0['flux'][overlap_index_0],
+                 'uncertainty': order_0['uncertainty'][overlap_index_0],
+                 'data_quality': order_0['data_quality'][overlap_index_0]
+                 }
+    overlap_1 = {'wavelength': order_1['wavelength'][overlap_index_1],
+                 'flux': order_1['flux'][overlap_index_1],
+                 'uncertainty': order_1['uncertainty'][overlap_index_1],
+                 'data_quality': order_1['data_quality'][overlap_index_1]
+                 }
+    overlap_2 = {'wavelength': order_2['wavelength'][overlap_index_2],
+                 'flux': order_2['flux'][overlap_index_2],
+                 'uncertainty': order_2['uncertainty'][overlap_index_2],
+                 'data_quality': order_2['data_quality'][overlap_index_2]
+                 }
+    unique_0 = {'wavelength': order_0['wavelength'][i0:],
+                'flux': order_0['flux'][i0:],
+                'uncertainty': order_0['uncertainty'][i0:],
+                'data_quality': order_0['data_quality'][i0:]
+                }
+    unique_10 = {'wavelength': order_1['wavelength'][:i1],
+                 'flux': order_1['flux'][:i1],
+                 'uncertainty': order_1['uncertainty'][:i1],
+                 'data_quality': order_1['data_quality'][:i1]
+                 }
+    unique_11 = {'wavelength': order_1['wavelength'][i2:],
+                 'flux': order_1['flux'][i2:],
+                 'uncertainty': order_1['uncertainty'][i2:],
+                 'data_quality': order_1['data_quality'][i2:]
+                 }
+    unique_2 = {'wavelength': order_2['wavelength'][:i3],
+                'flux': order_2['flux'][:i3],
+                'uncertainty': order_2['uncertainty'][:i3],
+                'data_quality': order_2['data_quality'][:i3]
+                }
+    sections = [unique_0, unique_10, unique_11, unique_2, overlap_0, overlap_1,
+                overlap_2]
 
     return sections
 
@@ -443,6 +505,8 @@ def splice_pipeline(dataset, prefix='./', update_fits=False, output_file=None,
 
     # Finally splice the unique and merged sections
     wavelength, flux, uncertainty, dq = splice(unique_sections, merged_sections)
+
+    # Instantiate the spectrum dictionary
     spectrum_dict = \
         {'WAVELENGTH': wavelength, 'FLUX': flux, 'ERROR': uncertainty, 'DQ': dq}
     spliced_spectrum_table = Table(spectrum_dict)

@@ -121,6 +121,25 @@ def find_overlap(order_pair):
 
 # Find overlap between three sections
 def find_overlap_trio(order_trio):
+    """
+    Find and return the overlapping sections of a trio of orders in the Echelle
+    spectrum.
+
+    Parameters
+    ----------
+    order_trio (Sequence):
+        The trio of spectral sections containing two ``dict`` objects, one for
+        each order. Can be either an array, list, or sequence.
+
+    Returns
+    -------
+    sections (``list``):
+        List of sections in the following order: unique sections for the first,
+        second and third spectral orders followed by the overlapping sections
+        for the first, second and third orders. "First", "second" and "third"
+        here do not refer to the actual order numbers of the spectrum, but
+        rather in the trio of neighboring orders.
+    """
     order_0, order_1, order_2 = order_trio
 
     # Identify the wavelength values in the borders of each order

@@ -13,12 +13,13 @@ from astropy.io import fits
 from astropy.table import Table
 
 
-__all__ = ["read_spectrum", "find_overlap_all", "find_overlap",
+__all__ = ["read_spectrum", "find_overlap_all", "find_overlap_pair",
            "find_overlap_trio", "merge_overlap", "splice", "splice_pipeline"]
 
 
 # Read the Echelle spectrum based on dataset name and a prefix for file location
-def read_spectrum(filename, prefix):
+def read_spectrum(filename, prefix, truncate_edge_left=None,
+                  truncate_edge_right=None):
     """
     This is a fairly straightforward function to read the spectrum from a `x1d`
     FITS file.
@@ -30,6 +31,16 @@ def read_spectrum(filename, prefix):
 
     prefix (``str``):
         Path to the ``*_x1d.fits`` file containing the spectrum.
+
+    truncate_edge_left (``int``, optional):
+        Set the number of low-resolution pixels at the left edge of the detector
+        where the spectra should be truncated. If ``None``, then no truncation
+        is applied. Default is ``None``.
+
+    truncate_edge_right (``int``, optional):
+        Set the number of low-resolution pixels at the right edge of the
+        detector where the spectra should be truncated. If ``None``, then no
+        truncation is applied. Default is ``None``.
 
     Returns
     -------
@@ -49,13 +60,20 @@ def read_spectrum(filename, prefix):
     data_quality = data['DQ']
     n_orders = len(wavelength)
 
+    tel = truncate_edge_left
+    if truncate_edge_right is not None:
+        ter = -truncate_edge_right
+    else:
+        ter = truncate_edge_right
+
     # We index the spectral regions as a `dict` in order to avoid confusion with
     # too many numerical indexes. Also, since the orders are in reverse order,
     # we index them in the opposite way
-    spectrum = [{'wavelength': wavelength[-i - 1],
-                 'flux': flux[-i - 1],
-                 'uncertainty': uncertainty[-i - 1],
-                 'data_quality': data_quality[-i - 1]} for i in range(n_orders)]
+    spectrum = [{'wavelength': wavelength[-i - 1][tel:ter],
+                 'flux': flux[-i - 1][tel:ter],
+                 'uncertainty': uncertainty[-i - 1][tel:ter],
+                 'data_quality': data_quality[-i - 1][tel:ter]}
+                for i in range(n_orders)]
     return spectrum
 
 
@@ -393,7 +411,7 @@ def find_overlap_all(spectrum):
 
 
 # Identify overlapping regions in each order
-def find_overlap(order_pair):
+def find_overlap_pair(order_pair):
     """
     Find and return the overlapping sections of the Echelle spectrum.
 
@@ -815,6 +833,7 @@ def splice(unique_spectra_list, merged_pair_list, merged_trio_list):
 
 # The splice pipeline does everything
 def splice_pipeline(dataset, prefix='./', update_fits=False, output_file=None,
+                    truncate_edge_left=None, truncate_edge_right=None,
                     acceptable_dq_flags=(0, 64, 128, 1024, 2048)):
     """
     The main workhorse of the package. This pipeline performs all the steps
@@ -839,23 +858,6 @@ def splice_pipeline(dataset, prefix='./', update_fits=False, output_file=None,
         String containing the location to save the output spectrum as an ascii
         file. If ``None``, no output file is saved and the code returns an
         Astropy Table instead. Default is ``None``.
-
-    inconsistency_sigma (``float`` or ``int``, optional):
-        Threshold standard deviation to determine if two fluxes in the same
-        wavelength bin are inconsistent with each other. Default is ``3``.
-
-    outlier_sigma (``float`` or ``int``, optional):
-        Threshold standard deviation to determine if the flux in a given pixel
-        is inconsistent with the average between the neighboring pixels. Default
-        is ``5``.
-
-    correct_inconsistent_fluxes (``bool``, optional):
-        Parameter that decides whether to correct or not correct inconsistent
-        fluxes. Default is ``True``.
-
-    correct_outlier_fluxes (``bool``, optional):
-        Parameter that decides whether to correct or not correct outlier fluxes.
-        Default is ``True``.
 
     acceptable_dq_flags (array-like, optional):
         Data-quality flags that are acceptable when co-adding overlapping

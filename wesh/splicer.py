@@ -687,10 +687,9 @@ def merge_overlap(overlap_sections,
     avg_snr = np.array([np.mean(ok['flux'] / ok['uncertainty'])
                         for ok in overlap_sections])
 
-    # We interpolate the higher-SNR spectra to the wavelength bins of the lower
-    # SNR spectrum. This is to avoid degrading the spectrum that already has
-    # the worst quality
-    min_snr_idx = np.where(avg_snr == min(avg_snr))[0][0]
+    # We interpolate the higher-SNR spectra to the wavelength bins of the higher
+    # SNR spectrum.
+    min_snr_idx = np.where(avg_snr == max(avg_snr))[0][0]
     overlap_ref = overlap_sections.pop(min_snr_idx)
 
     f_interp = []

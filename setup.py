@@ -15,17 +15,17 @@ if sys.argv[-1] == "publish":
 
 setup(
     name="wesh",
-    version="0.1a",
+    version="0.1b",
     author="Leonardo dos Santos",
     author_email="ldsantos@stsci.edu",
     packages=["wesh"],
-    url="https://github.com/ladsantos/wesh",
+    url="https://grit.stsci.edu/ldsantos/wesh",
     license="MIT",
     description="Weaver of Echelle Spectra from Hubble",
     install_requires=[line.strip() for line in
                       open('requirements.txt', 'r').readlines()],
     classifiers=[
-        "Development Status :: 3 - Alpha",
+        "Development Status :: 4 - Beta",
         "Intended Audience :: Science/Research",
         "License :: OSI Approved :: MIT License",
         "Operating System :: OS Independent",

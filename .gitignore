@@ -131,3 +131,8 @@ dmypy.json
 # PyCharm stuff
 .idea/
 .DS_Store
+
+# Leo's specific stuff
+tests/misc_tests.ipynb
+data/o59s06010_x1d.fits
+data/oep501010_x1d.fits

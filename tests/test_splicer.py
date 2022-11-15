@@ -18,4 +18,4 @@ def test_pipeline(precision_threshold=1E-6):
     spectrum_table = splicer.splice_pipeline(dataset, prefix)
     i0 = tools.nearest_index(spectrum_table['WAVELENGTH'].data, 2310)
     test = spectrum_table['FLUX'][i0]
-    assert(abs(test - 2.460101E-12) / test < precision_threshold)
+    assert(abs(test - 2.4648798E-12) / test < precision_threshold)

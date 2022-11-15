@@ -850,10 +850,9 @@ def splice_pipeline(dataset, prefix='./', update_fits=False, output_file=None,
         Path to the ``*_x1d.fits`` file containing the spectrum.
 
     update_fits (``bool``, optional):
-        THIS FEATURE HAS NOT BEEN TESTED YET. Use carefully, since it can modify
-        fits files permanently. Parameter that decides whether to update the
-        ``*_x1d.fits`` file with a new extension containing the spliced
-        spectrum.
+        Use carefully, since it can modify fits files permanently. Parameter
+        that decides whether to update the ``*_x1d.fits`` file with a new
+        extension containing the spliced spectrum.
 
     output_file (``str`` or ``None``, optional):
         String containing the location to save the output spectrum as an ascii
@@ -904,11 +903,14 @@ def splice_pipeline(dataset, prefix='./', update_fits=False, output_file=None,
     spectrum_dict = \
         {'WAVELENGTH': wavelength, 'FLUX': flux, 'ERROR': uncertainty, 'DQ': dq}
     spliced_spectrum_table = Table(spectrum_dict)
+    table_hdu = fits.BinTableHDU(spliced_spectrum_table)
 
-    # This feature has not been tested yet! Use carefully!
+    # This feature modifies the fits input file! Use carefully!
     if update_fits is True:
-        fits.append(prefix + '%s_x1d.fits' % dataset,
-                    data=spliced_spectrum_table)
+        with fits.open(prefix + '%s_x1d.fits' % dataset, mode='update') as hdul:
+            hdul.append(table_hdu)
+    else:
+        pass
 
     # Return or output the result
     if output_file is None:

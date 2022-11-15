@@ -705,9 +705,11 @@ def merge_overlap(overlap_sections,
     err_interp = np.array(err_interp)
 
     # Merge the spectra. We will take the weighted averaged, with weights equal
-    # to the pixel-by-pixel signal-to-noise ratio.
-    weights_interp = f_interp / err_interp
-    weights_ref = overlap_ref['flux'] / overlap_ref['uncertainty']
+    # to the inverse of the uncertainties squared multiplied by a scale factor
+    # to avoid numerical overflows.
+    scale = 1E-20
+    weights_interp = (1 / err_interp) ** 2 * scale
+    weights_ref = (1 / overlap_ref['uncertainty']) ** 2 * scale
 
     # Here we deal with the data-quality flags. We only accept flags that are
     # listed in `acceptable_dq_flags`. Let's initialize the dq flag arrays

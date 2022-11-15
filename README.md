@@ -22,3 +22,21 @@ You can test the installation from source with ``pytest`` (you may need to insta
 ```angular2html
 pytest tests
 ```
+
+Documentation
+-------------
+
+To compile the documentation, you will need to install the following dependencies:
+* [``sphinx``](https://www.sphinx-doc.org/)
+* [``jupyter``](https://jupyter.org/install)
+* [``nbsphinx``](https://nbsphinx.readthedocs.io)
+* [``numpydoc``](https://numpydoc.readthedocs.io)
+* ``pandoc`` (see the installation instructions of ``nbsphinx``)
+
+Then run the following commands:
+```angular2html
+cd docs
+make html
+```
+
+The documentation pages will be compiled in a folder called `_build`.

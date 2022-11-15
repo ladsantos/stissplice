@@ -1,0 +1,7 @@
+numpy
+scipy
+astropy
+ipykernel
+nbsphinx
+numpydoc
+pandoc

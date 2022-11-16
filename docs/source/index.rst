@@ -12,7 +12,7 @@ Currently, the only way to install ``wesh`` is to compile from source. First, cl
 
 .. code-block:: bash
 
-    git clone https://github.com/ladsantos/wesh.git
+    git clone https://grit.stsci.edu/ldsantos/wesh.git
     cd wesh
 
 And then compile it from source:

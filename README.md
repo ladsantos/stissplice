@@ -9,7 +9,7 @@ Installation
 
 Currently, the only way to install ``wesh`` is to compile from source. First, clone the repository and then navigate to it:
 ```angular2html
-git clone https://github.com/ladsantos/wesh.git
+git clone https://grit.stsci.edu/ldsantos/wesh.git
 cd wesh
 ```
 

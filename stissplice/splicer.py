@@ -8,7 +8,7 @@ Space Telescope.
 from __future__ import (division, print_function, absolute_import,
                         unicode_literals)
 import numpy as np
-from wesh import tools
+from stissplice import tools
 from astropy.io import fits
 from astropy.table import Table
 

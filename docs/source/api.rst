@@ -1,5 +1,5 @@
-``wesh`` API
-============
+``stissplice`` API
+==================
 
 .. toctree::
    :maxdepth: 2

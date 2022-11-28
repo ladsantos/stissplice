@@ -7,13 +7,13 @@ Space Telescope.
 
 from __future__ import (division, print_function, absolute_import,
                         unicode_literals)
-from wesh import splicer, tools
+from stissplice import splicer, tools
 
 
 # Test the entire splicing pipeline
 def test_pipeline(precision_threshold=1E-6):
     dataset = 'oblh01040'
-    prefix = '../data/'
+    prefix = 'data/'
 
     spectrum_table = splicer.splice_pipeline(dataset, prefix)
     i0 = tools.nearest_index(spectrum_table['WAVELENGTH'].data, 2310)

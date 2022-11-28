@@ -14,7 +14,7 @@ if sys.argv[-1] == "publish":
     sys.exit()
 
 setup(
-    name="wesh",
+    name="stissplice",
     version="0.1b",
     author="Leonardo dos Santos",
     author_email="ldsantos@stsci.edu",

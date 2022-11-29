@@ -13,8 +13,8 @@ from astropy.io import fits
 from astropy.table import Table
 
 
-__all__ = ["read_spectrum", "find_overlap_all", "find_overlap_pair",
-           "find_overlap_trio", "merge_overlap", "splice", "splice_pipeline"]
+__all__ = ["read_spectrum", "find_overlap", "merge_overlap", "splice",
+           "splice_pipeline"]
 
 
 # Read the Echelle spectrum based on dataset name and a prefix for file location
@@ -58,6 +58,8 @@ def read_spectrum(filename, prefix, truncate_edge_left=None,
     flux = data['FLUX']
     uncertainty = data['ERROR']
     data_quality = data['DQ']
+    gross_counts = data['GROSS']
+    net_counts = data['NET']
     n_orders = len(wavelength)
 
     tel = truncate_edge_left
@@ -72,13 +74,15 @@ def read_spectrum(filename, prefix, truncate_edge_left=None,
     spectrum = [{'wavelength': wavelength[-i - 1][tel:ter],
                  'flux': flux[-i - 1][tel:ter],
                  'uncertainty': uncertainty[-i - 1][tel:ter],
-                 'data_quality': data_quality[-i - 1][tel:ter]}
+                 'data_quality': data_quality[-i - 1][tel:ter],
+                 'gross': gross_counts[-i - 1][tel:ter],
+                 'net': net_counts[-i - 1][tel:ter]}
                 for i in range(n_orders)]
     return spectrum
 
 
 # Identify overlaps in the whole spectrum
-def find_overlap_all(spectrum):
+def find_overlap(spectrum):
     """
     Find and return the overlapping sections of the Echelle spectrum.
 
@@ -127,7 +131,9 @@ def find_overlap_all(spectrum):
     unique_sections.append({'wavelength': order['wavelength'][unique_idx],
                             'flux': order['flux'][unique_idx],
                             'uncertainty': order['uncertainty'][unique_idx],
-                            'data_quality': order['data_quality'][unique_idx]})
+                            'data_quality': order['data_quality'][unique_idx],
+                            'gross': order['gross'][unique_idx],
+                            'net': order['net'][unique_idx]})
 
     # There is also a pair overlap. But since it's with the next order, it's
     # considered a "second pair"
@@ -135,7 +141,9 @@ def find_overlap_all(spectrum):
     second_pair.append({'wavelength': order['wavelength'][overlap_01],
                         'flux': order['flux'][overlap_01],
                         'uncertainty': order['uncertainty'][overlap_01],
-                        'data_quality': order['data_quality'][overlap_01]})
+                        'data_quality': order['data_quality'][overlap_01],
+                        'gross': order['gross'][overlap_01],
+                        'net': order['net'][overlap_01]})
 
     if idx[1] < 1023:
         # There is a trio overlap
@@ -144,7 +152,9 @@ def find_overlap_all(spectrum):
             {'wavelength': order['wavelength'][overlap_012],
              'flux': order['flux'][overlap_012],
              'uncertainty': order['uncertainty'][overlap_012],
-             'data_quality': order['data_quality'][overlap_012]}
+             'data_quality': order['data_quality'][overlap_012],
+             'gross': order['gross'][overlap_012],
+             'net': order['net'][overlap_012]}
         )
     else:
         pass
@@ -186,7 +196,9 @@ def find_overlap_all(spectrum):
             {'wavelength': order['wavelength'][unique_1],
              'flux': order['flux'][unique_1],
              'uncertainty': order['uncertainty'][unique_1],
-             'data_quality': order['data_quality'][unique_1]}
+             'data_quality': order['data_quality'][unique_1],
+             'gross': order['gross'][unique_1],
+             'net': order['net'][unique_1]}
         )
     else:
         pass
@@ -194,17 +206,23 @@ def find_overlap_all(spectrum):
     first_pair.append({'wavelength': order['wavelength'][overlap_01],
                        'flux': order['flux'][overlap_01],
                        'uncertainty': order['uncertainty'][overlap_01],
-                       'data_quality': order['data_quality'][overlap_01]})
+                       'data_quality': order['data_quality'][overlap_01],
+                       'gross': order['gross'][overlap_01],
+                       'net': order['net'][overlap_01]})
     second_pair.append({'wavelength': order['wavelength'][overlap_12],
                         'flux': order['flux'][overlap_12],
                         'uncertainty': order['uncertainty'][overlap_12],
-                        'data_quality': order['data_quality'][overlap_12]})
+                        'data_quality': order['data_quality'][overlap_12],
+                        'gross': order['gross'][overlap_12],
+                        'net': order['net'][overlap_12]})
 
     if overlap_012 is not None:
         second_trio.append({'wavelength': order['wavelength'][overlap_012],
                             'flux': order['flux'][overlap_012],
                             'uncertainty': order['uncertainty'][overlap_012],
-                            'data_quality': order['data_quality'][overlap_012]})
+                            'data_quality': order['data_quality'][overlap_012],
+                            'gross': order['gross'][overlap_012],
+                            'net': order['net'][overlap_012]})
     else:
         pass
 
@@ -212,7 +230,9 @@ def find_overlap_all(spectrum):
         third_trio.append({'wavelength': order['wavelength'][overlap_123],
                            'flux': order['flux'][overlap_123],
                            'uncertainty': order['uncertainty'][overlap_123],
-                           'data_quality': order['data_quality'][overlap_123]})
+                           'data_quality': order['data_quality'][overlap_123],
+                           'gross': order['gross'][overlap_123],
+                           'net': order['net'][overlap_123]})
 
     # Now we deal with the third to third before last orders in a loop
     for i in range(n_orders - 4):
@@ -245,13 +265,17 @@ def find_overlap_all(spectrum):
             {'wavelength': order['wavelength'][overlap_idx_12],
              'flux': order['flux'][overlap_idx_12],
              'uncertainty': order['uncertainty'][overlap_idx_12],
-             'data_quality': order['data_quality'][overlap_idx_12]}
+             'data_quality': order['data_quality'][overlap_idx_12],
+             'gross': order['gross'][overlap_idx_12],
+             'net': order['net'][overlap_idx_12]}
         )
         second_pair.append(
             {'wavelength': order['wavelength'][overlap_idx_23],
              'flux': order['flux'][overlap_idx_23],
              'uncertainty': order['uncertainty'][overlap_idx_23],
-             'data_quality': order['data_quality'][overlap_idx_23]}
+             'data_quality': order['data_quality'][overlap_idx_23],
+             'gross': order['gross'][overlap_idx_23],
+             'net': order['net'][overlap_idx_23]}
         )
 
         if overlap_idx_012 is not None:
@@ -259,7 +283,9 @@ def find_overlap_all(spectrum):
                 {'wavelength': order['wavelength'][overlap_idx_012],
                  'flux': order['flux'][overlap_idx_012],
                  'uncertainty': order['uncertainty'][overlap_idx_012],
-                 'data_quality': order['data_quality'][overlap_idx_012]}
+                 'data_quality': order['data_quality'][overlap_idx_012],
+                 'gross': order['gross'][overlap_idx_012],
+                 'net': order['net'][overlap_idx_012]}
             )
         else:
             pass
@@ -269,7 +295,9 @@ def find_overlap_all(spectrum):
                 {'wavelength': order['wavelength'][overlap_idx_123],
                  'flux': order['flux'][overlap_idx_123],
                  'uncertainty': order['uncertainty'][overlap_idx_123],
-                 'data_quality': order['data_quality'][overlap_idx_123]}
+                 'data_quality': order['data_quality'][overlap_idx_123],
+                 'gross': order['gross'][overlap_idx_123],
+                 'net': order['net'][overlap_idx_123]}
             )
         else:
             pass
@@ -279,7 +307,9 @@ def find_overlap_all(spectrum):
                 {'wavelength': order['wavelength'][overlap_idx_234],
                  'flux': order['flux'][overlap_idx_234],
                  'uncertainty': order['uncertainty'][overlap_idx_234],
-                 'data_quality': order['data_quality'][overlap_idx_234]}
+                 'data_quality': order['data_quality'][overlap_idx_234],
+                 'gross': order['gross'][overlap_idx_234],
+                 'net': order['net'][overlap_idx_234]}
             )
         else:
             pass
@@ -289,7 +319,9 @@ def find_overlap_all(spectrum):
                 {'wavelength': order['wavelength'][unique_idx_2],
                  'flux': order['flux'][unique_idx_2],
                  'uncertainty': order['uncertainty'][unique_idx_2],
-                 'data_quality': order['data_quality'][unique_idx_2]}
+                 'data_quality': order['data_quality'][unique_idx_2],
+                 'gross': order['gross'][unique_idx_2],
+                 'net': order['net'][unique_idx_2]}
             )
         else:
             pass
@@ -330,7 +362,9 @@ def find_overlap_all(spectrum):
             {'wavelength': order['wavelength'][unique_2],
              'flux': order['flux'][unique_2],
              'uncertainty': order['uncertainty'][unique_2],
-             'data_quality': order['data_quality'][unique_2]}
+             'data_quality': order['data_quality'][unique_2],
+             'gross': order['gross'][unique_2],
+             'net': order['net'][unique_2]}
         )
     else:
         pass
@@ -338,17 +372,23 @@ def find_overlap_all(spectrum):
     first_pair.append({'wavelength': order['wavelength'][overlap_12],
                        'flux': order['flux'][overlap_12],
                        'uncertainty': order['uncertainty'][overlap_12],
-                       'data_quality': order['data_quality'][overlap_12]})
+                       'data_quality': order['data_quality'][overlap_12],
+                       'gross': order['gross'][overlap_12],
+                       'net': order['net'][overlap_12]})
     second_pair.append({'wavelength': order['wavelength'][overlap_23],
                         'flux': order['flux'][overlap_23],
                         'uncertainty': order['uncertainty'][overlap_23],
-                        'data_quality': order['data_quality'][overlap_23]})
+                        'data_quality': order['data_quality'][overlap_23],
+                        'gross': order['gross'][overlap_23],
+                        'net': order['net'][overlap_23]})
 
     if overlap_012 is not None:
         first_trio.append({'wavelength': order['wavelength'][overlap_012],
                            'flux': order['flux'][overlap_012],
                            'uncertainty': order['uncertainty'][overlap_012],
-                           'data_quality': order['data_quality'][overlap_012]})
+                           'data_quality': order['data_quality'][overlap_012],
+                           'gross': order['gross'][overlap_012],
+                           'net': order['net'][overlap_012]})
     else:
         pass
 
@@ -356,7 +396,9 @@ def find_overlap_all(spectrum):
         second_trio.append({'wavelength': order['wavelength'][overlap_123],
                             'flux': order['flux'][overlap_123],
                             'uncertainty': order['uncertainty'][overlap_123],
-                            'data_quality': order['data_quality'][overlap_123]})
+                            'data_quality': order['data_quality'][overlap_123],
+                            'gross': order['gross'][overlap_123],
+                            'net': order['net'][overlap_123]})
 
     # Finally deal with the last order
     order = spectrum[-1]
@@ -370,7 +412,9 @@ def find_overlap_all(spectrum):
         {'wavelength': order['wavelength'][unique_idx],
          'flux': order['flux'][unique_idx],
          'uncertainty': order['uncertainty'][unique_idx],
-         'data_quality': order['data_quality'][unique_idx]}
+         'data_quality': order['data_quality'][unique_idx],
+         'gross': order['gross'][unique_idx],
+         'net': order['net'][unique_idx]}
     )
 
     # There is also a pair overlap. But since it's with the previous order, it's
@@ -380,7 +424,9 @@ def find_overlap_all(spectrum):
         {'wavelength': order['wavelength'][overlap_23],
          'flux': order['flux'][overlap_23],
          'uncertainty': order['uncertainty'][overlap_23],
-         'data_quality': order['data_quality'][overlap_23]}
+         'data_quality': order['data_quality'][overlap_23],
+         'gross': order['gross'][overlap_23],
+         'net': order['net'][overlap_23]}
     )
 
     if idx[0] > 0:
@@ -390,7 +436,9 @@ def find_overlap_all(spectrum):
             {'wavelength': order['wavelength'][overlap_123],
              'flux': order['flux'][overlap_123],
              'uncertainty': order['uncertainty'][overlap_123],
-             'data_quality': order['data_quality'][overlap_123]}
+             'data_quality': order['data_quality'][overlap_123],
+             'gross': order['gross'][overlap_123],
+             'net': order['net'][overlap_123]}
         )
     else:
         pass
@@ -408,244 +456,6 @@ def find_overlap_all(spectrum):
                                           third_trio[i]])
 
     return unique_sections, overlap_pair_sections, overlap_trio_sections
-
-
-# Identify overlapping regions in each order
-def find_overlap_pair(order_pair):
-    """
-    Find and return the overlapping sections of the Echelle spectrum.
-
-    Parameters
-    ----------
-    order_pair (Sequence):
-        The pair of spectral sections containing two ``dict`` objects, one for
-        each order. Can be either an array, list, or sequence.
-
-    Returns
-    -------
-    unique_sections (``list``):
-        List of unique sections in for the first and second spectral orders in a
-        pair, respectively. "First" and "second" here do not refer to the actual
-        order numbers of the spectrum, but rather in the pair of neighboring
-        orders.
-
-    overlap_sections (``list``):
-        List of overlap sections in for the first order overlap with
-        the second, and the second order overlap with the first, respectively.
-        "First" and "second" here do not refer to the actual order numbers of
-        the spectrum, but rather in the pair of neighboring orders.
-    """
-    order_0, order_1 = order_pair
-
-    # Identify the wavelength values in the borders of each order
-    borders_0 = \
-        np.array([min(order_0['wavelength']), max(order_0['wavelength'])])
-    borders_1 = \
-        np.array([min(order_1['wavelength']), max(order_1['wavelength'])])
-
-    # Identify the indexes where the orders overlap
-    i0 = tools.nearest_index(order_0['wavelength'], borders_1[0])
-    i1 = tools.nearest_index(order_1['wavelength'], borders_0[1])
-    len_order_0 = len(order_0['wavelength'])
-    len_order_1 = len(order_1['wavelength'])
-    overlap_index_0 = np.arange(i0, len_order_0, 1)
-    overlap_index_1 = np.arange(0, i1, 1)
-
-    # Break down the order pair into four sections: two are unique spectral
-    # sections, and the other two are the overlapping spectral sections
-    overlap_0 = {'wavelength': order_0['wavelength'][overlap_index_0],
-                 'flux': order_0['flux'][overlap_index_0],
-                 'uncertainty': order_0['uncertainty'][overlap_index_0],
-                 'data_quality': order_0['data_quality'][overlap_index_0]
-                 }
-    overlap_1 = {'wavelength': order_1['wavelength'][overlap_index_1],
-                 'flux': order_1['flux'][overlap_index_1],
-                 'uncertainty': order_1['uncertainty'][overlap_index_1],
-                 'data_quality': order_1['data_quality'][overlap_index_1]
-                 }
-    unique_0 = {'wavelength': order_0['wavelength'][:i0],
-                'flux': order_0['flux'][:i0],
-                'uncertainty': order_0['uncertainty'][:i0],
-                'data_quality': order_0['data_quality'][:i0]
-                }
-    unique_1 = {'wavelength': order_1['wavelength'][i1:],
-                'flux': order_1['flux'][i1:],
-                'uncertainty': order_1['uncertainty'][i1:],
-                'data_quality': order_1['data_quality'][i1:]
-                }
-
-    unique_sections = [unique_0, unique_1]
-    overlap_sections = [overlap_0, overlap_1]
-
-    return unique_sections, overlap_sections
-
-
-# Find overlap between three sections
-def find_overlap_trio(order_trio):
-    """
-    Find and return the overlapping sections of a trio of orders in the Echelle
-    spectrum.
-
-    Parameters
-    ----------
-    order_trio (Sequence):
-        The trio of spectral sections containing two ``dict`` objects, one for
-        each order. Can be either an array, list, or sequence.
-
-    Returns
-    -------
-    unique_sections (``list``):
-        List of unique sections in for the first, second and third spectral
-        orders in a trio, respectively. "First", "second" and "third"
-        here do not refer to the actual order numbers of the spectrum, but
-        rather in the trio of neighboring orders.
-
-    overlap_sections (``list``):
-        List of overlap sections in for [0] the first order overlap with
-        the second and third, [1] the first order overlap with the second, [2]
-        the second order overlap with the third, [3] the second order overlap
-        with the first and third, [4] the second order overlap with the first,
-        [5] the third order overlap with the second, [6] the third order overlap
-        with the first and second, respectively. "First", "second" and "third"
-        here do not refer to the actual order numbers of the spectrum, but
-        rather in the trio of neighboring orders.
-    """
-    order_0, order_1, order_2 = order_trio
-
-    # Identify the wavelength values in the borders of each order
-    borders_0 = \
-        np.array([min(order_0['wavelength']), max(order_0['wavelength'])])
-    borders_1 = \
-        np.array([min(order_1['wavelength']), max(order_1['wavelength'])])
-    borders_2 = \
-        np.array([min(order_2['wavelength']), max(order_2['wavelength'])])
-
-    # Identify the indexes where the orders overlap. Things are a bit convoluted
-    # here but we need to identify where there are overlaps between 3 orders and
-    # also between 2 orders
-    i00 = tools.nearest_index(order_0['wavelength'], borders_1[0])
-    i01 = tools.nearest_index(order_0['wavelength'], borders_2[0])
-    # If i01 is lower than the length of order_0, then there is a trio overlap
-    len_order_0 = len(order_0['wavelength'])
-    len_order_1 = len(order_1['wavelength'])
-    if i01 < len_order_0 - 1:
-        i10 = tools.nearest_index(order_1['wavelength'], borders_2[0])
-        i11 = tools.nearest_index(order_1['wavelength'], borders_0[1])
-    else:
-        i10 = tools.nearest_index(order_1['wavelength'], borders_0[1])
-        i11 = tools.nearest_index(order_1['wavelength'], borders_2[0])
-    i20 = tools.nearest_index(order_2['wavelength'], borders_0[1])
-    i21 = tools.nearest_index(order_2['wavelength'], borders_1[1])
-
-    # If i01 is lower than the length of order_0, then there is a trio overlap
-    if i01 < len_order_0 - 1:
-        overlap_index_0_1 = np.arange(i00, i01, 1)  # Indexes in order zero
-        # corresponding to the overlap with order 1
-        overlap_index_0_12 = np.arange(i01, len_order_0, 1)  # Indexes in order
-        # zero corresponding to the overlap with orders 1 and 2
-        overlap_index_1_0 = np.arange(0, i10, 1)  # Indexes in order 1
-        # corresponding to the overlap with order 0
-        overlap_index_1_02 = np.arange(i10, i11, 1)  # Indexes in order 1
-        # corresponding to the overlap with orders 0 and 2
-        overlap_index_1_2 = np.arange(i11, len_order_1, 1)  # Indexes in order 1
-        # corresponding to the overlap with order 2
-        overlap_index_2_01 = np.arange(0, i20, 1)  # Indexes in order 2
-        # corresponding to the overlap with orders 1 and 2
-        overlap_index_2_1 = np.arange(i20, i21, 1)  # Indexes in order 2
-        # corresponding to the overlap with order 1
-
-        # Break down the order trio into ten sections: three are unique spectral
-        # sections, and the other seven are the overlapping spectral sections
-        overlap_0_12 = {'wavelength': order_0['wavelength'][overlap_index_0_12],
-                        'flux': order_0['flux'][overlap_index_0_12],
-                        'uncertainty': order_0['uncertainty'][
-                            overlap_index_0_12],
-                        'data_quality': order_0['data_quality'][
-                            overlap_index_0_12]
-                        }
-        overlap_1_02 = {'wavelength': order_1['wavelength'][overlap_index_1_02],
-                        'flux': order_1['flux'][overlap_index_1_02],
-                        'uncertainty': order_1['uncertainty'][
-                            overlap_index_1_02],
-                        'data_quality': order_1['data_quality'][
-                            overlap_index_1_02]
-                        }
-        overlap_2_01 = {'wavelength': order_2['wavelength'][overlap_index_2_01],
-                        'flux': order_2['flux'][overlap_index_2_01],
-                        'uncertainty': order_2['uncertainty'][
-                            overlap_index_2_01],
-                        'data_quality': order_2['data_quality'][
-                            overlap_index_2_01]
-                        }
-        unique_1 = None
-
-    # Otherwise, if i01 is 1023, then there is no trio overlap
-    else:
-        overlap_index_0_1 = np.arange(i00, len_order_0, 1)  # Indexes in order
-        # zero corresponding to the overlap with order 1
-        overlap_index_1_0 = np.arange(0, i10, 1)  # Indexes in order zero
-        # corresponding to the overlap with order 0
-        overlap_index_1_2 = np.arange(i11, len_order_1, 1)  # Indexes in order 1
-        # corresponding to the overlap with order 2
-        overlap_index_2_1 = np.arange(0, i21, 1)  # Indexes in order 2
-        # corresponding to the overlap with order 1
-
-        # Break down the order trio into ten sections: three are unique spectral
-        # sections, and the other seven are the overlapping spectral sections
-        overlap_0_12 = None
-        overlap_1_02 = None
-        overlap_2_01 = None
-
-        unique_1 = {'wavelength': order_1['wavelength'][i10:i11],
-                    'flux': order_1['flux'][i10:i11],
-                    'uncertainty': order_1['uncertainty'][i10:i11],
-                    'data_quality': order_1['data_quality'][i10:i11]
-                    }
-
-    # The overlap_0_1, overlap_1_0, overlap_1_2, overlap_2_1, unique_0 and
-    # unique_2 are the same whether there is a trio overlap or not
-    overlap_0_1 = {'wavelength': order_0['wavelength'][overlap_index_0_1],
-                   'flux': order_0['flux'][overlap_index_0_1],
-                   'uncertainty': order_0['uncertainty'][overlap_index_0_1],
-                   'data_quality': order_0['data_quality'][
-                       overlap_index_0_1]
-                   }
-    overlap_1_0 = {'wavelength': order_1['wavelength'][overlap_index_1_0],
-                   'flux': order_1['flux'][overlap_index_1_0],
-                   'uncertainty': order_1['uncertainty'][overlap_index_1_0],
-                   'data_quality': order_1['data_quality'][
-                       overlap_index_1_0]
-                   }
-    overlap_1_2 = {'wavelength': order_1['wavelength'][overlap_index_1_2],
-                   'flux': order_1['flux'][overlap_index_1_2],
-                   'uncertainty': order_1['uncertainty'][overlap_index_1_2],
-                   'data_quality': order_1['data_quality'][
-                       overlap_index_1_2]
-                   }
-    overlap_2_1 = {'wavelength': order_2['wavelength'][overlap_index_2_1],
-                   'flux': order_2['flux'][overlap_index_2_1],
-                   'uncertainty': order_2['uncertainty'][overlap_index_2_1],
-                   'data_quality': order_2['data_quality'][
-                       overlap_index_2_1]
-                   }
-    unique_0 = {'wavelength': order_0['wavelength'][:i00],
-                'flux': order_0['flux'][:i00],
-                'uncertainty': order_0['uncertainty'][i00:],
-                'data_quality': order_0['data_quality'][i00:]
-                }
-
-    unique_2 = {'wavelength': order_2['wavelength'][i21:],
-                'flux': order_2['flux'][i21:],
-                'uncertainty': order_2['uncertainty'][i21:],
-                'data_quality': order_2['data_quality'][i21:]
-                }
-
-    unique_sections = [unique_0, unique_1, unique_2]
-    overlap_sections = [overlap_0_1, overlap_0_12, overlap_1_0,
-                        overlap_1_02, overlap_1_2, overlap_2_01,
-                        overlap_2_1]
-
-    return unique_sections, overlap_sections
 
 
 # Merge overlapping sections
@@ -876,7 +686,7 @@ def splice_pipeline(dataset, prefix='./', update_fits=False, output_file=None,
     sections = read_spectrum(dataset, prefix)
 
     unique_sections, overlap_pair_sections, overlap_trio_sections = \
-        find_overlap_all(sections)
+        find_overlap(sections)
 
     # Merge the overlapping spectral sections
     merged_pairs = [

@@ -261,22 +261,29 @@ def find_overlap(spectrum):
         else:
             overlap_idx_234 = None
 
-        first_pair.append(
-            {'wavelength': order['wavelength'][overlap_idx_12],
-             'flux': order['flux'][overlap_idx_12],
-             'uncertainty': order['uncertainty'][overlap_idx_12],
-             'data_quality': order['data_quality'][overlap_idx_12],
-             'gross': order['gross'][overlap_idx_12],
-             'net': order['net'][overlap_idx_12]}
-        )
-        second_pair.append(
-            {'wavelength': order['wavelength'][overlap_idx_23],
-             'flux': order['flux'][overlap_idx_23],
-             'uncertainty': order['uncertainty'][overlap_idx_23],
-             'data_quality': order['data_quality'][overlap_idx_23],
-             'gross': order['gross'][overlap_idx_23],
-             'net': order['net'][overlap_idx_23]}
-        )
+        if len(overlap_idx_12) > 0:
+            first_pair.append(
+                {'wavelength': order['wavelength'][overlap_idx_12],
+                 'flux': order['flux'][overlap_idx_12],
+                 'uncertainty': order['uncertainty'][overlap_idx_12],
+                 'data_quality': order['data_quality'][overlap_idx_12],
+                 'gross': order['gross'][overlap_idx_12],
+                 'net': order['net'][overlap_idx_12]}
+            )
+        else:
+            pass
+
+        if len(overlap_idx_23) > 0:
+            second_pair.append(
+                {'wavelength': order['wavelength'][overlap_idx_23],
+                 'flux': order['flux'][overlap_idx_23],
+                 'uncertainty': order['uncertainty'][overlap_idx_23],
+                 'data_quality': order['data_quality'][overlap_idx_23],
+                 'gross': order['gross'][overlap_idx_23],
+                 'net': order['net'][overlap_idx_23]}
+            )
+        else:
+            pass
 
         if overlap_idx_012 is not None:
             first_trio.append(
@@ -369,18 +376,25 @@ def find_overlap(spectrum):
     else:
         pass
 
-    first_pair.append({'wavelength': order['wavelength'][overlap_12],
-                       'flux': order['flux'][overlap_12],
-                       'uncertainty': order['uncertainty'][overlap_12],
-                       'data_quality': order['data_quality'][overlap_12],
-                       'gross': order['gross'][overlap_12],
-                       'net': order['net'][overlap_12]})
-    second_pair.append({'wavelength': order['wavelength'][overlap_23],
-                        'flux': order['flux'][overlap_23],
-                        'uncertainty': order['uncertainty'][overlap_23],
-                        'data_quality': order['data_quality'][overlap_23],
-                        'gross': order['gross'][overlap_23],
-                        'net': order['net'][overlap_23]})
+    if len(overlap_12) > 0:
+        first_pair.append({'wavelength': order['wavelength'][overlap_12],
+                           'flux': order['flux'][overlap_12],
+                           'uncertainty': order['uncertainty'][overlap_12],
+                           'data_quality': order['data_quality'][overlap_12],
+                           'gross': order['gross'][overlap_12],
+                           'net': order['net'][overlap_12]})
+    else:
+        pass
+
+    if len(overlap_23) > 0:
+        second_pair.append({'wavelength': order['wavelength'][overlap_23],
+                            'flux': order['flux'][overlap_23],
+                            'uncertainty': order['uncertainty'][overlap_23],
+                            'data_quality': order['data_quality'][overlap_23],
+                            'gross': order['gross'][overlap_23],
+                            'net': order['net'][overlap_23]})
+    else:
+        pass
 
     if overlap_012 is not None:
         first_trio.append({'wavelength': order['wavelength'][overlap_012],
@@ -420,14 +434,18 @@ def find_overlap(spectrum):
     # There is also a pair overlap. But since it's with the previous order, it's
     # considered a "first pair"
     overlap_23 = np.arange(idx[0], idx[1], 1)
-    first_pair.append(
-        {'wavelength': order['wavelength'][overlap_23],
-         'flux': order['flux'][overlap_23],
-         'uncertainty': order['uncertainty'][overlap_23],
-         'data_quality': order['data_quality'][overlap_23],
-         'gross': order['gross'][overlap_23],
-         'net': order['net'][overlap_23]}
-    )
+
+    if len(overlap_23) > 0:
+        first_pair.append(
+            {'wavelength': order['wavelength'][overlap_23],
+             'flux': order['flux'][overlap_23],
+             'uncertainty': order['uncertainty'][overlap_23],
+             'data_quality': order['data_quality'][overlap_23],
+             'gross': order['gross'][overlap_23],
+             'net': order['net'][overlap_23]}
+        )
+    else:
+        pass
 
     if idx[0] > 0:
         # There is a trio overlap
@@ -629,6 +647,13 @@ def splice(unique_spectra_list, merged_pair_list, merged_trio_list):
             all_spectra.append(unique_spectra_list[k])
             k += 1
             pass
+
+    # There may still be some unique spectra remaining
+    unique_remaining = len(unique_spectra_list) - k
+    for ik in range(unique_remaining):
+        all_spectra.append(unique_spectra_list[k])
+        k += 1
+
     spliced_wavelength = \
         np.concatenate([spectrum['wavelength'] for spectrum in all_spectra])
     spliced_flux = \

@@ -12,5 +12,5 @@ install:
 
 # command to run tests
 script:
-  - coverage run --source=template_python_package/ -m pytest tests/
+  - coverage run --source=stissplice/ -m pytest tests/
   - coveralls

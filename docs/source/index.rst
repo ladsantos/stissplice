@@ -34,3 +34,4 @@ You can test the installation from source with ``pytest`` (you may need to insta
 
    api
    usage_example
+   how_it_works

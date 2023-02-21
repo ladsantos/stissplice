@@ -15,17 +15,17 @@ if sys.argv[-1] == "publish":
 
 setup(
     name="stissplice",
-    version="0.1b",
+    version="1.0.0",
     author="Leonardo dos Santos",
     author_email="ldsantos@stsci.edu",
     packages=["stissplice"],
     url="https://github.com/ladsantos/stissplice",
     license="MIT",
-    description="Weaver of Echelle Spectra from Hubble",
+    description="Splicer of STIS Echelle Spectra from Hubble Space Telescope",
     install_requires=[line.strip() for line in
                       open('requirements.txt', 'r').readlines()],
     classifiers=[
-        "Development Status :: 4 - Beta",
+        "Development Status :: 5 - Production/Stable",
         "Intended Audience :: Science/Research",
         "License :: OSI Approved :: MIT License",
         "Operating System :: OS Independent",

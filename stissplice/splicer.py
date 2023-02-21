@@ -511,11 +511,11 @@ def merge_overlap(overlap_sections,
     """
     n_overlaps = len(overlap_sections)
 
-    # First we need to determine which spectrum has a lower SNR
+    # First we need to determine which spectrum has a higher SNR
     avg_snr = np.array([np.mean(ok['flux'] / ok['uncertainty'])
                         for ok in overlap_sections])
 
-    # We interpolate the higher-SNR spectra to the wavelength bins of the higher
+    # We interpolate the lower-SNR spectra to the wavelength bins of the higher
     # SNR spectrum.
     min_snr_idx = np.where(avg_snr == max(avg_snr))[0][0]
     overlap_ref = overlap_sections.pop(min_snr_idx)
@@ -727,8 +727,9 @@ def splice_pipeline(dataset, prefix='./', update_fits=False, output_file=None,
     else:
         merged_trios = []
 
-    # By now we have two lists: unique_sections and merged_sections. The next
-    # step is to concatenate everything in the correct order.
+    # By now we have three lists: unique_sections, merged_pairs and
+    # merged_trios. The next step is to concatenate everything in the correct
+    # order.
 
     # Finally splice the unique and merged sections
     wavelength, flux, uncertainty, dq = splice(unique_sections, merged_pairs,

@@ -9,7 +9,18 @@ This code is currently in development and accepting suggestions of features to i
 Installation
 ------------
 
-Currently, the only way to install ``stissplice`` is to compile from source. First, clone the repository and then navigate to it:
+You can install `stissplice` using `pip` or by compiling it from source.
+
+### Option 1: Using `pip` (stable version)
+
+Simply run the following command:
+```angular2html
+pip install stissplice
+```
+
+### Option 2: Compile from source (development version)
+
+First, clone the repository and then navigate to it:
 ```angular2html
 git clone https://github.com/ladsantos/stissplice
 cd stissplice
@@ -28,17 +39,4 @@ pytest tests
 Documentation
 -------------
 
-To compile the documentation, you will need to install the following dependencies:
-* [``sphinx``](https://www.sphinx-doc.org/)
-* [``jupyter``](https://jupyter.org/install)
-* [``nbsphinx``](https://nbsphinx.readthedocs.io)
-* [``numpydoc``](https://numpydoc.readthedocs.io)
-* ``pandoc`` (see the installation instructions of ``nbsphinx``)
-
-Then run the following commands:
-```angular2html
-cd docs
-make html
-```
-
-The documentation pages will be compiled in a folder called `_build`.
+See the page [stissplice.readthedocs.io](https://stissplice.readthedocs.io/).

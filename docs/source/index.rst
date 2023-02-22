@@ -8,7 +8,19 @@ This code is currently in development and accepting suggestions of features to i
 Installation
 ------------
 
-Currently, the only way to install ``stissplice`` is to compile from source. First, clone the repository and then navigate to it:
+Option 1: Using ``pip`` (stable version)
+........................................
+
+Simply run the following command:
+
+.. code-block:: bash
+
+   pip install stissplice
+
+Option 2: Compile from source (development version)
+...................................................
+
+First, clone the repository and then navigate to it:
 
 .. code-block:: bash
 

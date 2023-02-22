@@ -1,5 +1,7 @@
 # stissplice
 
+[![Documentation Status](https://readthedocs.org/projects/stissplice/badge/?version=latest)](https://stissplice.readthedocs.io/en/latest/?badge=latest) [![Build Status](https://app.travis-ci.com/ladsantos/stissplice.svg?branch=main)](https://app.travis-ci.com/ladsantos/stissplice) [![Coverage Status](https://coveralls.io/repos/github/ladsantos/stissplice/badge.svg?branch=main)](https://coveralls.io/github/ladsantos/stissplice?branch=main)
+
 ``stissplice`` is the splicer of Echelle Spectra from Hubble Space Telescope. This code splices Echelle spectra obtained with the Space Telescope Imaging Spectrograph (STIS) instrument. It can be adapted to work with spectra obtained with other instruments as well.
 
 This code is currently in development and accepting suggestions of features to implement, as well as contributions.

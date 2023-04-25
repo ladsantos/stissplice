@@ -7,15 +7,27 @@ Space Telescope.
 
 from __future__ import (division, print_function, absolute_import,
                         unicode_literals)
-from stissplice import splicer, tools
+from stissplice import splicer
+import numpy as np
 
 
 # Test the entire splicing pipeline
 def test_pipeline(precision_threshold=1E-6):
     dataset = 'oblh01040'
-    prefix = 'data/'
+    prefix = '../data/'
 
-    spectrum_table = splicer.splice_pipeline(dataset, prefix)
-    i0 = tools.nearest_index(spectrum_table['WAVELENGTH'].data, 2310)
-    test = spectrum_table['FLUX'][i0]
-    assert(abs(test - 2.4648798E-12) / test < precision_threshold)
+    spectrum_table = splicer.splice_pipeline(dataset, prefix,
+                                             weight='sensitivity')
+
+    truth = np.loadtxt('../docs/source/spliced_spectrum_truth.dat', skiprows=1)
+    wl_truth = truth[:, 0]
+    f_truth = truth[:, 1]
+    u_truth = truth[:, 2]
+
+    f_scale = 1E-12
+    wl_diff = abs(np.sum(spectrum_table['WAVELENGTH'].data - wl_truth))
+    f_diff = abs(np.sum(spectrum_table['FLUX'].data - f_truth)) / f_scale
+    u_diff = abs(np.sum(spectrum_table['ERROR'].data - u_truth)) / f_scale
+    diff = wl_diff + f_diff + u_diff
+
+    assert(diff < precision_threshold)

@@ -11,6 +11,7 @@ import numpy as np
 from stissplice import tools
 from astropy.io import fits
 from astropy.table import Table
+from functools import reduce
 
 
 __all__ = ["read_spectrum", "find_overlap", "merge_overlap", "splice",
@@ -478,7 +479,8 @@ def find_overlap(spectrum):
 
 # Merge overlapping sections
 def merge_overlap(overlap_sections,
-                  acceptable_dq_flags=(0, 64, 128, 1024, 2048)):
+                  acceptable_dq_flags=(0, 64, 128, 1024, 2048),
+                  weight='sensitivity'):
     """
     Merges overlapping spectral regions. The basic workflow of this function
     is to interpolate the sections into a common wavelength table and calculate
@@ -504,12 +506,18 @@ def merge_overlap(overlap_sections,
         overscan region, 1024 = small blemish, 2048 = more than 30% of
         background pixels rejected by sigma-clipping in the data reduction.
 
+    weight : ``str``, optional
+        Defines how to merge the overlapping sections. The options currently
+        implemented are ``'sensitivity'`` and ``'snr'`` (inverse square of the
+        uncertainties). Default is ``'sensitivity'``.
+
     Returns
     -------
     overlap_merged (``dict``):
         Dictionary containing the merged overlapping spectrum.
     """
     n_overlaps = len(overlap_sections)
+    bitwise_or_acceptable_dq_flags = reduce(np.bitwise_or, acceptable_dq_flags)
 
     # First we need to determine which spectrum has a higher SNR
     avg_snr = np.array([np.mean(ok['flux'] / ok['uncertainty'])
@@ -522,53 +530,86 @@ def merge_overlap(overlap_sections,
 
     f_interp = []
     err_interp = []
+    net_interp = []
     for i in range(n_overlaps - 1):
+        # Since we cannot really interpolate DQ flags, before we do the
+        # interpolation, we need to identify the pixels where
+        # the DQ flags are not acceptable, and assign them a NaN value
+        overlap_s_f = np.copy(overlap_sections[i]['flux'])
+        overlap_s_u = np.copy(overlap_sections[i]['uncertainty'])
+        overlap_s_n = np.copy(overlap_sections[i]['net'])
+        overlap_s_dq = overlap_sections[i]['data_quality']
+        where_dq_bad = np.where(overlap_s_dq & bitwise_or_acceptable_dq_flags)
+        overlap_s_f[where_dq_bad] = np.nan
+        overlap_s_u[where_dq_bad] = np.nan
+        overlap_s_n[where_dq_bad] = np.nan
+
+        # Now we perform the interpolation
         f_interp.append(np.interp(overlap_ref['wavelength'],
                                   overlap_sections[i]['wavelength'],
-                                  overlap_sections[i]['flux']))
+                                  overlap_s_f))
         err_interp.append(np.interp(overlap_ref['wavelength'],
-                          overlap_sections[i]['wavelength'],
-                          overlap_sections[i]['uncertainty']))
+                                    overlap_sections[i]['wavelength'],
+                                    overlap_s_u))
+        net_interp.append(np.interp(overlap_ref['wavelength'],
+                                    overlap_sections[i]['wavelength'],
+                                    overlap_s_n))
     f_interp = np.array(f_interp)
     err_interp = np.array(err_interp)
+    net_interp = np.array(net_interp)
+    sens_interp = net_interp / f_interp  # This is a good estimate of the
+    # sensitivity. If there were NaNs, however, we set the sensitivity to an
+    # arbitraty value; these interpolated pixels will be ignored anyway during
+    # merging
+    sens_interp[np.where(np.isnan(sens_interp))] = 0.0
+    sens_ref = overlap_ref['net'] / overlap_ref['flux']
 
     # Merge the spectra. We will take the weighted averaged, with weights equal
     # to the inverse of the uncertainties squared multiplied by a scale factor
     # to avoid numerical overflows.
-    scale = 1E-20
-    weights_interp = (1 / err_interp) ** 2 * scale
-    weights_ref = (1 / overlap_ref['uncertainty']) ** 2 * scale
+    if weight == 'sensitivity':
+        scale = 1E-10
+        weights_interp = sens_interp * scale
+        weights_ref = sens_ref * scale
+    elif weight == 'snr':
+        scale = 1E-20
+        weights_interp = (1 / err_interp) ** 2 * scale
+        weights_ref = (1 / overlap_ref['uncertainty']) ** 2 * scale
+    else:
+        raise ValueError(
+            'The weighting option "{}" is not implemented.'.format(weight))
 
     # Here we deal with the data-quality flags. We only accept flags that are
     # listed in `acceptable_dq_flags`. Let's initialize the dq flag arrays
     dq_ref = overlap_ref['data_quality']
-
-    # We create a new data-quality array filled with 32768, which is what we
-    # establish as the flag for co-added pixels
-    dq_merge = np.ones_like(dq_ref, dtype=int) * 32768
-
-    # The interpolated dq flag array is a bit more involved. First we
-    # interpolate the original array to the new wavelength grid, and then we
-    # round all the values to the nearest integer
-    dq_interp = []
-    for i in range(n_overlaps - 1):
-        dq_interp.append(np.rint(np.interp(overlap_ref['wavelength'],
-                                           overlap_sections[i]['wavelength'],
-                                           overlap_sections[i]['data_quality']))
-                         )
-    dq_interp = np.array(dq_interp)
-    # However this does not guarantee the interpolated and rounded dq values are
-    # valid dq flags. Since the interpolation occurs at very small wavelength
-    # shifts, for now we assume that all dq flags will be valid. This may be
-    # changed in the future.
     # We start assuming that all the dq weights are zero
     dq_weights_ref = np.zeros_like(dq_ref)
-    dq_weights_interp = np.zeros_like(dq_interp)
     # And then for each acceptable dq, if the element of the dq array is one
     # of the acceptable flags, we set its dq weight to one
-    for adq in acceptable_dq_flags:
-        dq_weights_ref[np.where(dq_ref == adq)] = 1
-        dq_weights_interp[np.where(dq_interp == adq)] = 1
+    dq_weights_ref[np.where(dq_ref & bitwise_or_acceptable_dq_flags)] = 1
+    # The lines above do not catch a DQ flag of zero, so we have to manually
+    # add them in case they are an acceptable DQ flag
+    dq_weights_ref_0 = np.zeros_like(dq_weights_ref)
+    if any(0 in acceptable_dq_flags for it in range(len(acceptable_dq_flags))) \
+            is True:
+        dq_weights_ref_0[np.where(dq_ref == 0)] = 1
+    dq_weights_ref += dq_weights_ref_0
+
+    # For the merged section, we create a new data-quality array filled with
+    # 32768, which is what we establish as the flag for co-added pixels
+    dq_merge = np.ones_like(dq_ref, dtype=int) * 32768
+    # And the pixel-by-pixel weights are all one, except where there were set to
+    # Nan
+    dq_weights_interp = np.ones_like(f_interp)
+    dq_weights_interp[np.where(np.isnan(f_interp))] = 0
+
+    # Now we need to get rid of the NaNs to avoid numerical problems. We will
+    # assign them an arbitrary value of -99, but the value does not matter
+    # because their weight is zero anyway
+    f_interp[np.where(np.isnan(f_interp))] = -99
+    err_interp[np.where(np.isnan(err_interp))] = -99
+    net_interp[np.where(np.isnan(net_interp))] = -99
+    sens_interp[np.where(np.isnan(sens_interp))] = -99
 
     # Now we need to verify if we are setting the dq weighting to zero in both
     # the reference and the interpolated dqs. If this is the case, we will
@@ -669,7 +710,7 @@ def splice(unique_spectra_list, merged_pair_list, merged_trio_list):
 
 # The splice pipeline does everything
 def splice_pipeline(dataset, prefix='./', update_fits=False, output_file=None,
-                    truncate_edge_left=None, truncate_edge_right=None,
+                    weight='sensitivity',
                     acceptable_dq_flags=(0, 64, 128, 1024, 2048)):
     """
     The main workhorse of the package. This pipeline performs all the steps
@@ -694,6 +735,11 @@ def splice_pipeline(dataset, prefix='./', update_fits=False, output_file=None,
         file. If ``None``, no output file is saved and the code returns an
         Astropy Table instead. Default is ``None``.
 
+    weight : ``str``, optional
+        Defines how to merge the overlapping sections. The options currently
+        implemented are ``'sensitivity'`` and ``'snr'`` (inverse square of the
+        uncertainties). Default is ``'sensitivity'``.
+
     acceptable_dq_flags (array-like, optional):
         Data-quality flags that are acceptable when co-adding overlapping
         spectra. The default values are (0, 64, 128, 1024, 2048), which
@@ -715,13 +761,14 @@ def splice_pipeline(dataset, prefix='./', update_fits=False, output_file=None,
 
     # Merge the overlapping spectral sections
     merged_pairs = [
-        merge_overlap(overlap_pair_sections[k], acceptable_dq_flags)
+        merge_overlap(overlap_pair_sections[k], acceptable_dq_flags, weight)
         for k in range(len(overlap_pair_sections))
     ]
 
     if len(overlap_trio_sections) > 0:
         merged_trios = [
-            merge_overlap(overlap_trio_sections[k], acceptable_dq_flags)
+            merge_overlap(overlap_trio_sections[k], acceptable_dq_flags,
+                          weight)
             for k in range(len(overlap_trio_sections))
         ]
     else:

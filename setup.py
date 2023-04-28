@@ -15,7 +15,7 @@ if sys.argv[-1] == "publish":
 
 setup(
     name="stissplice",
-    version="1.0.2",
+    version="1.0.3",
     author="Leonardo dos Santos",
     author_email="ldsantos@stsci.edu",
     packages=["stissplice"],

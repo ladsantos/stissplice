@@ -598,7 +598,7 @@ def merge_overlap(overlap_sections,
     f_interp = np.array(f_interp)
     err_interp = np.array(err_interp)
     net_interp = np.array(net_interp)
-    dq_interp = np.array(dq_interp)#.astype(int)
+    dq_interp = np.array(dq_interp).astype(int)
     sens_interp = net_interp / f_interp  # This is a good estimate of the
     # sensitivity. If there were NaNs, however, we set the sensitivity to an
     # arbitraty value; these interpolated pixels will be ignored anyway during
@@ -685,16 +685,21 @@ def merge_overlap(overlap_sections,
 
     f_merge = np.zeros_like(overlap_ref['flux'])
     err_merge = np.zeros_like(overlap_ref['uncertainty'])
+    net_merge = np.zeros_like(overlap_ref['net'])
     for i in range(n_overlaps - 1):
         f_merge += f_interp[i] * weights_interp[i]
         err_merge += err_interp[i] ** 2 * weights_interp[i] ** 2
+        net_merge += net_interp[i] * weights_interp[i]
     f_merge += overlap_ref['flux'] * weights_ref
     err_merge += overlap_ref['uncertainty'] ** 2 * weights_ref ** 2
+    net_merge += overlap_ref['net'] * weights_ref
     f_merge = f_merge / sum_weights
     err_merge = err_merge ** 0.5 / sum_weights
+    net_merge = net_merge / f_merge
 
     overlap_merged = {'wavelength': wl_merge, 'flux': f_merge,
-                      'uncertainty': err_merge, 'data_quality': dq_merge}
+                      'uncertainty': err_merge, 'data_quality': dq_merge,
+                      'net': net_merge}
 
     return overlap_merged
 
@@ -756,9 +761,11 @@ def splice(unique_spectra_list, merged_pair_list, merged_trio_list):
         np.concatenate([spectrum['uncertainty'] for spectrum in all_spectra])
     spliced_data_quality = \
         np.concatenate([spectrum['data_quality'] for spectrum in all_spectra])
+    spliced_net = \
+        np.concatenate([spectrum['net'] for spectrum in all_spectra])
 
     return spliced_wavelength, spliced_flux, spliced_uncertainty, \
-        spliced_data_quality
+        spliced_data_quality, spliced_net
 
 
 # The splice pipeline does everything
@@ -844,12 +851,13 @@ def splice_pipeline(dataset, prefix='./', update_fits=False, output_file=None,
     # order.
 
     # Finally splice the unique and merged sections
-    wavelength, flux, uncertainty, dq = splice(unique_sections, merged_pairs,
-                                               merged_trios)
+    wavelength, flux, uncertainty, dq, net = \
+        splice(unique_sections, merged_pairs, merged_trios)
 
     # Instantiate the spectrum dictionary
     spectrum_dict = \
-        {'WAVELENGTH': wavelength, 'FLUX': flux, 'ERROR': uncertainty, 'DQ': dq}
+        {'WAVELENGTH': wavelength, 'FLUX': flux, 'ERROR': uncertainty, 'DQ': dq,
+         'NET': net}
     spliced_spectrum_table = Table(spectrum_dict)
     table_hdu = fits.BinTableHDU(spliced_spectrum_table)
 

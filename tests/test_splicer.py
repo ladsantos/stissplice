@@ -19,7 +19,7 @@ def test_pipeline(precision_threshold=1E-6):
     spectrum_table = splicer.splice_pipeline(dataset, prefix,
                                              weight='sensitivity')
 
-    truth = np.loadtxt('docs/source/spliced_spectrum_truth.dat', skiprows=1)
+    truth = np.loadtxt('../docs/source/spliced_spectrum_truth.dat', skiprows=1)
     wl_truth = truth[:, 0]
     f_truth = truth[:, 1]
     u_truth = truth[:, 2]

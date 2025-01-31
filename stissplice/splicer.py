@@ -12,6 +12,7 @@ from stissplice import tools
 from astropy.io import fits
 from astropy.table import Table
 from functools import reduce
+from scipy.stats import binned_statistic
 
 
 __all__ = ["read_spectrum", "find_overlap", "merge_overlap", "splice",
@@ -63,22 +64,29 @@ def read_spectrum(filename, prefix, truncate_edge_left=None,
     net_counts = data['NET']
     n_orders = len(wavelength)
 
-    tel = truncate_edge_left
-    if truncate_edge_right is not None:
-        ter = -truncate_edge_right
-    else:
-        ter = truncate_edge_right
-
     # We index the spectral regions as a `dict` in order to avoid confusion with
     # too many numerical indexes. Also, since the orders are in reverse order,
     # we index them in the opposite way
-    spectrum = [{'wavelength': wavelength[-i - 1][tel:ter],
-                 'flux': flux[-i - 1][tel:ter],
-                 'uncertainty': uncertainty[-i - 1][tel:ter],
-                 'data_quality': data_quality[-i - 1][tel:ter],
-                 'gross': gross_counts[-i - 1][tel:ter],
-                 'net': net_counts[-i - 1][tel:ter]}
+    spectrum = [{'wavelength': wavelength[-i - 1],
+                 'flux': flux[-i - 1],
+                 'uncertainty': uncertainty[-i - 1],
+                 'data_quality': data_quality[-i - 1],
+                 'gross': gross_counts[-i - 1],
+                 'net': net_counts[-i - 1]}
                 for i in range(n_orders)]
+
+    # If edge truncation is passed, we simply assign a different DQ flags to the
+    # pixels to be truncated. We choose the flag 4096, which corresponds to
+    # "Extracted flux affected by bad input data."
+    if truncate_edge_right is not None:
+        for sk in spectrum:
+            sk['data_quality'][-truncate_edge_right:] = 4096
+    elif truncate_edge_left is not None:
+        for sk in spectrum:
+            sk['data_quality'][:truncate_edge_left] = 4096
+    else:
+        pass
+
     return spectrum
 
 
@@ -536,32 +544,61 @@ def merge_overlap(overlap_sections,
     f_interp = []
     err_interp = []
     net_interp = []
+    dq_interp = []
     for i in range(n_overlaps - 1):
         # Since we cannot really interpolate DQ flags, before we do the
         # interpolation, we need to identify the pixels where
         # the DQ flags are not acceptable, and assign them a NaN value
-        overlap_s_f = np.copy(overlap_sections[i]['flux'])
-        overlap_s_u = np.copy(overlap_sections[i]['uncertainty'])
-        overlap_s_n = np.copy(overlap_sections[i]['net'])
-        overlap_s_dq = overlap_sections[i]['data_quality']
-        where_dq_bad = np.where(overlap_s_dq & bitwise_or_acceptable_dq_flags)
-        overlap_s_f[where_dq_bad] = np.nan
-        overlap_s_u[where_dq_bad] = np.nan
-        overlap_s_n[where_dq_bad] = np.nan
+        # overlap_s_f = np.copy(overlap_sections[i]['flux'])
+        # overlap_s_u = np.copy(overlap_sections[i]['uncertainty'])
+        # overlap_s_n = np.copy(overlap_sections[i]['net'])
+        # overlap_s_dq = np.copy(overlap_sections[i]['data_quality'])
+        # where_dq_bad = np.where(overlap_s_dq & bitwise_or_acceptable_dq_flags)
+        # overlap_s_f[where_dq_bad] = np.nan
+        # overlap_s_u[where_dq_bad] = np.nan
+        # overlap_s_n[where_dq_bad] = np.nan
 
         # Now we perform the interpolation
         f_interp.append(np.interp(overlap_ref['wavelength'],
                                   overlap_sections[i]['wavelength'],
-                                  overlap_s_f))
+                                  overlap_sections[i]['flux']))
         err_interp.append(np.interp(overlap_ref['wavelength'],
                                     overlap_sections[i]['wavelength'],
-                                    overlap_s_u))
+                                    overlap_sections[i]['uncertainty']))
         net_interp.append(np.interp(overlap_ref['wavelength'],
                                     overlap_sections[i]['wavelength'],
-                                    overlap_s_n))
+                                    overlap_sections[i]['net']))
+
+        # Instead of interpolating DQ flags, we take the bitwise or of DQ flag
+        # corresponding to the pixels that make up the interpolated information.
+        # This is done using scipy.stats.binned_statistic(). This is very hacky,
+        # so I apologize for the mess
+        wavelength_bin_widths = np.diff(overlap_ref['wavelength'])
+        wavelength_bin_edges_trim = \
+            overlap_ref['wavelength'][:-1] - wavelength_bin_widths / 2
+        wavelength_bin_edges = \
+            np.concatenate((
+                wavelength_bin_edges_trim,
+                np.array(
+                    [wavelength_bin_edges_trim[-1] + wavelength_bin_widths[-1],
+                     overlap_ref['wavelength'][-1] + wavelength_bin_widths[-1]
+                     / 2])
+            ))
+
+        def _combine_dq(dq_flags_array):
+            return reduce(np.bitwise_or, dq_flags_array).astype(int)
+
+        dq_interp_i, _, _ = binned_statistic(
+            overlap_sections[i]['wavelength'],
+            overlap_sections[i]['data_quality'],
+            statistic=_combine_dq, bins=wavelength_bin_edges
+        )
+        dq_interp.append(dq_interp_i)
+
     f_interp = np.array(f_interp)
     err_interp = np.array(err_interp)
     net_interp = np.array(net_interp)
+    dq_interp = np.array(dq_interp)#.astype(int)
     sens_interp = net_interp / f_interp  # This is a good estimate of the
     # sensitivity. If there were NaNs, however, we set the sensitivity to an
     # arbitraty value; these interpolated pixels will be ignored anyway during
@@ -589,32 +626,43 @@ def merge_overlap(overlap_sections,
     dq_ref = overlap_ref['data_quality']
     # We start assuming that all the dq weights are zero
     dq_weights_ref = np.zeros_like(dq_ref)
+    dq_weights_interp = np.zeros_like(dq_interp)
     # And then for each acceptable dq, if the element of the dq array is one
     # of the acceptable flags, we set its dq weight to one
     dq_weights_ref[np.where(dq_ref & bitwise_or_acceptable_dq_flags)] = 1
+    dq_weights_interp[np.where(dq_interp & bitwise_or_acceptable_dq_flags)] = 1
     # The lines above do not catch a DQ flag of zero, so we have to manually
     # add them in case they are an acceptable DQ flag
     dq_weights_ref_0 = np.zeros_like(dq_weights_ref)
+    dq_weights_interp_0 = np.zeros_like(dq_weights_interp)
     if any(0 in acceptable_dq_flags for it in range(len(acceptable_dq_flags))) \
             is True:
         dq_weights_ref_0[np.where(dq_ref == 0)] = 1
+        dq_weights_interp_0[np.where(dq_interp == 0)] = 1
     dq_weights_ref += dq_weights_ref_0
+    dq_weights_interp += dq_weights_interp_0
 
     # For the merged section, we create a new data-quality array filled with
     # 32768, which is what we establish as the flag for co-added pixels
-    dq_merge = np.ones_like(dq_ref, dtype=int) * 32768
+    # dq_merge = np.ones_like(dq_ref, dtype=int) * 32768
     # And the pixel-by-pixel weights are all one, except where there were set to
     # Nan
-    dq_weights_interp = np.ones_like(f_interp)
-    dq_weights_interp[np.where(np.isnan(f_interp))] = 0
+    # dq_weights_interp = np.ones_like(f_interp)
+    # dq_weights_interp[np.where(np.isnan(f_interp))] = 0
 
     # Now we need to get rid of the NaNs to avoid numerical problems. We will
     # assign them an arbitrary value of -99, but the value does not matter
     # because their weight is zero anyway
-    f_interp[np.where(np.isnan(f_interp))] = -99
-    err_interp[np.where(np.isnan(err_interp))] = -99
-    net_interp[np.where(np.isnan(net_interp))] = -99
-    sens_interp[np.where(np.isnan(sens_interp))] = -99
+    # f_interp[np.where(np.isnan(f_interp))] = -99
+    # err_interp[np.where(np.isnan(err_interp))] = -99
+    # net_interp[np.where(np.isnan(net_interp))] = -99
+    # sens_interp[np.where(np.isnan(sens_interp))] = -99
+
+    # Calculate the data quality array of the merged section. This is done by
+    # doing a bitwise-or between all components that go into the merged spectrum
+    dq_interp_collapsed = np.bitwise_or.reduce(dq_interp, axis=0)
+    dq_merge = np.bitwise_or.reduce(np.array([dq_interp_collapsed, dq_ref]),
+                                    axis=0)
 
     # Now we need to verify if we are setting the dq weighting to zero in both
     # the reference and the interpolated dqs. If this is the case, we will
@@ -716,7 +764,8 @@ def splice(unique_spectra_list, merged_pair_list, merged_trio_list):
 # The splice pipeline does everything
 def splice_pipeline(dataset, prefix='./', update_fits=False, output_file=None,
                     weight='sensitivity',
-                    acceptable_dq_flags=(0, 64, 128, 1024, 2048)):
+                    acceptable_dq_flags=(0, 64, 128, 1024, 2048),
+                    truncate_edge_left=None, truncate_edge_right=None):
     """
     The main workhorse of the package. This pipeline performs all the steps
     necessary to merge overlapping spectral sections and splice them with the
@@ -752,6 +801,16 @@ def splice_pipeline(dataset, prefix='./', update_fits=False, output_file=None,
         overscan region, 1024 = small blemish, 2048 = more than 30% of
         background pixels rejected by sigma-clipping in the data reduction.
 
+    truncate_edge_left (``int``, optional):
+        Set the number of low-resolution pixels at the left edge of the detector
+        where the spectra should be truncated. If ``None``, then no truncation
+        is applied. Default is ``None``.
+
+    truncate_edge_right (``int``, optional):
+        Set the number of low-resolution pixels at the right edge of the
+        detector where the spectra should be truncated. If ``None``, then no
+        truncation is applied. Default is ``None``.
+
     Returns
     -------
     spliced_spectrum_table (``astropy.Table`` object):
@@ -759,7 +818,8 @@ def splice_pipeline(dataset, prefix='./', update_fits=False, output_file=None,
         ``output_file`` is ``None``.
     """
     # Read the data
-    sections = read_spectrum(dataset, prefix)
+    sections = read_spectrum(dataset, prefix, truncate_edge_left,
+                             truncate_edge_right)
 
     unique_sections, overlap_pair_sections, overlap_trio_sections = \
         find_overlap(sections)
